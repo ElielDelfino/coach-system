@@ -1,0 +1,285 @@
+import { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import api from '../../services/api';
+import { useToast, errorMessage } from '../../components/ui/Toast';
+import { Card } from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
+import StatusBadge from '../../components/StatusBadge';
+
+const LIMIT = 20;
+
+function iniciais(nome) {
+  if (!nome) return '?';
+  return nome.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('pt-BR'); } catch { return d; }
+}
+
+export default function Alunos() {
+  const toast = useToast();
+  const [busca, setBusca] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [openCreate, setOpenCreate] = useState(false);
+
+  const ativoParam = filtroStatus === 'inativo' ? false : true;
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/alunos', {
+        params: { ativo: ativoParam, busca: busca || undefined, page, limit: LIMIT },
+      });
+      setData(res.data.data || []);
+      setTotal(res.data.total || 0);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [page, filtroStatus]);
+
+  // debounce simples para busca
+  useEffect(() => {
+    const t = setTimeout(() => { setPage(1); load(); }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca]);
+
+  const filtered = useMemo(() => {
+    if (filtroStatus === 'todos' || filtroStatus === 'inativo') return data;
+    return data.filter((a) => a.status === filtroStatus);
+  }, [data, filtroStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+
+  return (
+    <div className="p-8 space-y-6 max-w-7xl">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <div className="text-section-label">Cadastro</div>
+          <h1 className="text-page-title mt-1">Alunos</h1>
+        </div>
+        <Button onClick={() => setOpenCreate(true)}>+ Novo aluno</Button>
+      </header>
+
+      <Card className="p-4 flex flex-col md:flex-row gap-3 md:items-center">
+        <div className="flex-1">
+          <Input
+            placeholder="Buscar por nome ou e-mail…"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-1.5">
+          {[
+            { v: 'todos', l: 'Todos' },
+            { v: 'ativo', l: 'Ativos' },
+            { v: 'inadimplente', l: 'Inadimplentes' },
+            { v: 'inativo', l: 'Inativos' },
+          ].map((opt) => (
+            <button
+              key={opt.v}
+              onClick={() => { setFiltroStatus(opt.v); setPage(1); }}
+              className={
+                'px-3 py-1.5 rounded-md text-xs uppercase tracking-widest font-bold transition-colors ' +
+                (filtroStatus === opt.v
+                  ? 'bg-brand text-white'
+                  : 'bg-surface-elevated text-zinc-400 hover:text-white border border-surface-border')
+              }
+            >
+              {opt.l}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-section-label border-b border-surface-border">
+              <th className="text-left px-5 py-3 font-semibold">Aluno</th>
+              <th className="text-left px-5 py-3 font-semibold">E-mail</th>
+              <th className="text-left px-5 py-3 font-semibold">Telefone</th>
+              <th className="text-left px-5 py-3 font-semibold">Status</th>
+              <th className="text-left px-5 py-3 font-semibold">Vencimento</th>
+              <th className="text-right px-5 py-3 font-semibold">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td colSpan={6} className="text-center text-zinc-500 py-10">Carregando…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={6} className="text-center text-zinc-500 py-10">Nenhum aluno encontrado.</td></tr>
+            )}
+            {filtered.map((a) => (
+              <tr key={a.id} className="border-b border-surface-border text-zinc-300 hover:bg-surface-elevated transition-colors">
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-xs font-black text-white">
+                      {iniciais(a.nome)}
+                    </div>
+                    <span className="font-semibold text-white">{a.nome}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-3 text-zinc-400">{a.email}</td>
+                <td className="px-5 py-3 text-zinc-500 tabular-nums">{a.telefone || '—'}</td>
+                <td className="px-5 py-3"><StatusBadge status={a.status} /></td>
+                <td className="px-5 py-3 text-zinc-400 tabular-nums">{formatDate(a.vencimento_plano)}</td>
+                <td className="px-5 py-3 text-right">
+                  <Link to={`/admin/alunos/${a.id}`} className="text-xs uppercase tracking-widest font-bold text-brand hover:text-brand-dark">
+                    Ver
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      <div className="flex items-center justify-between text-xs">
+        <div className="text-zinc-500 uppercase tracking-widest">
+          {total} {total === 1 ? 'registro' : 'registros'} · Página {page} de {totalPages}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Anterior
+          </Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Próxima
+          </Button>
+        </div>
+      </div>
+
+      <CreateAlunoModal
+        open={openCreate}
+        onClose={() => setOpenCreate(false)}
+        onCreated={() => { setOpenCreate(false); load(); }}
+      />
+    </div>
+  );
+}
+
+function CreateAlunoModal({ open, onClose, onCreated }) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    nome: '', email: '', senha: '', telefone: '',
+    data_nascimento: '', sexo: '', objetivo: '', restricoes: '', lesoes: '',
+  });
+
+  function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+
+  async function submit(e) {
+    e.preventDefault();
+    if (!form.nome || !form.email || !form.senha) {
+      toast.error('Nome, e-mail e senha são obrigatórios.');
+      return;
+    }
+    if (form.senha.length < 8) {
+      toast.error('A senha deve ter no mínimo 8 caracteres.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = { ...form };
+      Object.keys(payload).forEach((k) => payload[k] === '' && delete payload[k]);
+      await api.post('/admin/alunos', payload);
+      toast.success('Aluno cadastrado com sucesso.');
+      setForm({ nome: '', email: '', senha: '', telefone: '', data_nascimento: '', sexo: '', objetivo: '', restricoes: '', lesoes: '' });
+      onCreated();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Novo aluno"
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? 'Salvando…' : 'Cadastrar'}</Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Nome completo *">
+          <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} autoFocus />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="E-mail *">
+            <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+          </Field>
+          <Field label="Senha * (mín. 8)">
+            <Input type="password" value={form.senha} onChange={(e) => set('senha', e.target.value)} />
+          </Field>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Telefone">
+            <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} />
+          </Field>
+          <Field label="Nascimento">
+            <Input type="date" value={form.data_nascimento} onChange={(e) => set('data_nascimento', e.target.value)} />
+          </Field>
+          <Field label="Sexo">
+            <select
+              value={form.sexo}
+              onChange={(e) => set('sexo', e.target.value)}
+              className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            >
+              <option value="">—</option>
+              <option value="M">Masculino</option>
+              <option value="F">Feminino</option>
+              <option value="outro">Outro</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Objetivo">
+          <Input value={form.objetivo} onChange={(e) => set('objetivo', e.target.value)} placeholder="Ex: hipertrofia, emagrecimento…" />
+        </Field>
+        <Field label="Restrições">
+          <textarea
+            value={form.restricoes}
+            onChange={(e) => set('restricoes', e.target.value)}
+            rows={2}
+            className="w-full bg-surface-input border border-surface-border text-white placeholder:text-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand resize-none"
+          />
+        </Field>
+        <Field label="Lesões">
+          <textarea
+            value={form.lesoes}
+            onChange={(e) => set('lesoes', e.target.value)}
+            rows={2}
+            className="w-full bg-surface-input border border-surface-border text-white placeholder:text-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand resize-none"
+          />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+export function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="text-section-label block mb-1.5">{label}</span>
+      {children}
+    </label>
+  );
+}
