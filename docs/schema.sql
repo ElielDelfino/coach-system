@@ -408,3 +408,32 @@ ALTER TABLE alunos
   ADD COLUMN IF NOT EXISTS percentual_gordura NUMERIC(5,2),
   ADD COLUMN IF NOT EXISTS peso_magro_kg      NUMERIC(5,2),
   ADD COLUMN IF NOT EXISTS peso_gordo_kg      NUMERIC(5,2);
+
+-- M003: adicionar campos de fatura e tolerância
+ALTER TABLE alunos
+  ADD COLUMN IF NOT EXISTS dias_tolerancia    INT NOT NULL DEFAULT 7,
+  ADD COLUMN IF NOT EXISTS periodicidade_dias INT NOT NULL DEFAULT 30;
+
+-- M004: nova tabela de faturas
+CREATE TABLE IF NOT EXISTS faturas (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  aluno_id         UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+  valor            NUMERIC(10,2) NOT NULL CHECK (valor > 0),
+  data_vencimento  DATE NOT NULL,
+  data_baixa       DATE,
+  metodo_baixa     TEXT CHECK (metodo_baixa IN ('dinheiro','pix','cartao_credito','cartao_debito','transferencia')),
+  status           TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente','pago','vencido')),
+  observacoes      TEXT,
+  registrado_por   UUID NOT NULL REFERENCES users(id),
+  created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_faturas_aluno_id        ON faturas (aluno_id);
+CREATE INDEX IF NOT EXISTS idx_faturas_status          ON faturas (status);
+CREATE INDEX IF NOT EXISTS idx_faturas_data_vencimento ON faturas (data_vencimento DESC);
+
+-- M005: adicionar campos de desconto na tabela faturas
+ALTER TABLE faturas
+  ADD COLUMN IF NOT EXISTS desconto_tipo  TEXT CHECK (desconto_tipo IN ('valor','percentual')),
+  ADD COLUMN IF NOT EXISTS desconto_valor NUMERIC(10,2) CHECK (desconto_valor >= 0);

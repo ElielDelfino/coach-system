@@ -8,18 +8,28 @@ router.get('/alunos/:id', c.getAluno);
 router.put('/alunos/:id', c.updateAluno);
 router.patch('/alunos/:id/ativar', c.ativarAluno);
 router.patch('/alunos/:id/desativar', c.desativarAluno);
+router.patch('/alunos/:id/senha', c.redefinirSenhaAluno);
 router.get('/alunos/:id/medidas', c.listMedidas);
 router.post('/alunos/:id/medidas', c.createMedida);
+router.get('/alunos/:id/medidas/:medidaId', c.getMedida);
+router.put('/alunos/:id/medidas/:medidaId', c.updateMedida);
+router.delete('/alunos/:id/medidas/:medidaId', c.deleteMedida);
 router.get('/alunos/:id/fotos', c.listFotos);
-router.post('/alunos/:id/fotos', c.createFoto);
 router.delete('/alunos/:alunoId/fotos/:fotoId', c.deleteFoto);
 router.get('/alunos/:id/pagamentos', c.listPagamentosAluno);
 router.post('/alunos/:id/pagamentos', c.createPagamento);
+router.get('/alunos/:id/faturas', c.listFaturasAluno);
+router.post('/alunos/:id/faturas', c.createFatura);
 router.get('/alunos/:id/protocolos', c.listProtocolos);
 router.post('/alunos/:id/protocolos', c.createProtocolo);
 
 // ─── pagamentos ───────────────────────────────────────────────────────────────
 router.get('/pagamentos', c.listPagamentos);
+
+// ─── faturas ──────────────────────────────────────────────────────────────────
+router.put('/faturas/:id', c.updateFatura);
+router.patch('/faturas/:id/baixa', c.darBaixaFatura);
+router.delete('/faturas/:id', c.deleteFatura);
 
 // ─── exercicios ───────────────────────────────────────────────────────────────
 router.get('/exercicios', c.listExercicios);
@@ -55,6 +65,8 @@ router.get('/protocolos/:id/treinos', c.listTreinos);
 router.post('/protocolos/:id/treinos', c.createTreino);
 router.get('/protocolos/:id/suplementacao', c.listSuplementacao);
 router.post('/protocolos/:id/suplementacao', c.createSuplemento);
+router.get('/protocolos/:id/pdf', c.baixarProtocoloPdf);
+router.post('/protocolos/:id/enviar-pdf', c.enviarProtocoloPdf);
 
 // ─── refeicoes ────────────────────────────────────────────────────────────────
 router.post('/refeicoes/:id/duplicar', c.duplicarRefeicao);

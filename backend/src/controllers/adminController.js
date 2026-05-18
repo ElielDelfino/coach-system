@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const alunoModel = require('../models/aluno');
 const redis = require('../config/redis');
+const { gerarPDFProtocolo } = require('../services/pdf');
+const { enviarProtocoloPorEmail } = require('../services/email');
 
 // ─── alunos ───────────────────────────────────────────────────────────────────
 
@@ -22,7 +24,10 @@ async function listAlunos(req, res) {
 
 async function createAluno(req, res) {
   try {
-    const { nome, email, senha, telefone, data_nascimento, sexo, objetivo, restricoes, lesoes } = req.body;
+    const {
+      nome, email, senha, telefone, data_nascimento, sexo, objetivo, restricoes, lesoes,
+      dias_tolerancia, periodicidade_dias,
+    } = req.body;
     if (!nome || !email || !senha) {
       return res.status(400).json({ message: 'Nome, e-mail e senha são obrigatórios.' });
     }
@@ -33,6 +38,7 @@ async function createAluno(req, res) {
     const senha_hash = await bcrypt.hash(senha, 12);
     const aluno = await alunoModel.create({
       nome, email, senha_hash, telefone, data_nascimento, sexo, objetivo, restricoes, lesoes,
+      dias_tolerancia, periodicidade_dias,
     });
     return res.status(201).json(aluno);
   } catch (err) {
@@ -90,6 +96,30 @@ async function desativarAluno(req, res) {
   }
 }
 
+async function redefinirSenhaAluno(req, res) {
+  try {
+    const { senha } = req.body || {};
+    if (!senha || typeof senha !== 'string') {
+      return res.status(400).json({ message: 'Senha é obrigatória.' });
+    }
+    if (senha.length < 8) {
+      return res.status(400).json({ message: 'A senha deve ter no mínimo 8 caracteres.' });
+    }
+
+    const aluno = await alunoModel.findById(req.params.id);
+    if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
+
+    const senha_hash = await bcrypt.hash(senha, 12);
+    const updated = await alunoModel.updateSenhaByAlunoId(req.params.id, senha_hash);
+    if (!updated) return res.status(404).json({ message: 'Aluno não encontrado.' });
+
+    return res.json({ message: 'Senha redefinida com sucesso.' });
+  } catch (err) {
+    console.error('[admin/redefinirSenhaAluno]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 // ─── medidas ──────────────────────────────────────────────────────────────────
 
 async function listMedidas(req, res) {
@@ -118,6 +148,39 @@ async function createMedida(req, res) {
   }
 }
 
+async function getMedida(req, res) {
+  try {
+    const medida = await alunoModel.findMedidaById(req.params.medidaId, req.params.id);
+    if (!medida) return res.status(404).json({ message: 'Medição não encontrada.' });
+    return res.json(medida);
+  } catch (err) {
+    console.error('[admin/getMedida]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function updateMedida(req, res) {
+  try {
+    const rows = await alunoModel.updateMedida(req.params.medidaId, req.params.id, req.body);
+    if (!rows) return res.status(404).json({ message: 'Medição não encontrada.' });
+    return res.json({ message: 'Medição atualizada.' });
+  } catch (err) {
+    console.error('[admin/updateMedida]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function deleteMedida(req, res) {
+  try {
+    const rows = await alunoModel.deleteMedida(req.params.medidaId, req.params.id);
+    if (!rows) return res.status(404).json({ message: 'Medição não encontrada.' });
+    return res.json({ message: 'Medição removida.' });
+  } catch (err) {
+    console.error('[admin/deleteMedida]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 // ─── fotos ────────────────────────────────────────────────────────────────────
 
 async function listFotos(req, res) {
@@ -127,23 +190,6 @@ async function listFotos(req, res) {
     return res.json(await alunoModel.findFotos(req.params.id));
   } catch (err) {
     console.error('[admin/listFotos]', err);
-    return res.status(500).json({ message: 'Erro interno do servidor.' });
-  }
-}
-
-async function createFoto(req, res) {
-  try {
-    const { url, posicao, data_foto } = req.body;
-    if (!url || !posicao) return res.status(400).json({ message: 'url e posicao são obrigatórios.' });
-    const POSICOES = ['frente', 'costas', 'lado_dir', 'lado_esq'];
-    if (!POSICOES.includes(posicao)) {
-      return res.status(400).json({ message: `posicao deve ser um de: ${POSICOES.join(', ')}` });
-    }
-    const aluno = await alunoModel.findById(req.params.id);
-    if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
-    return res.status(201).json(await alunoModel.createFoto(req.params.id, { url, posicao, data_foto }));
-  } catch (err) {
-    console.error('[admin/createFoto]', err);
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -206,6 +252,102 @@ async function createPagamento(req, res) {
     return res.status(201).json(pag);
   } catch (err) {
     console.error('[admin/createPagamento]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+// ─── faturas ──────────────────────────────────────────────────────────────────
+
+async function listFaturasAluno(req, res) {
+  try {
+    const aluno = await alunoModel.findById(req.params.id);
+    if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
+    return res.json(await alunoModel.findFaturasByAluno(req.params.id));
+  } catch (err) {
+    console.error('[admin/listFaturasAluno]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function createFatura(req, res) {
+  try {
+    const { valor, data_vencimento, observacoes, desconto_tipo, desconto_valor } = req.body;
+    if (!valor || !data_vencimento) {
+      return res.status(400).json({ message: 'valor e data_vencimento são obrigatórios.' });
+    }
+    if (Number(valor) <= 0) {
+      return res.status(400).json({ message: 'valor deve ser positivo.' });
+    }
+    const TIPOS_DESCONTO = ['valor', 'percentual'];
+    if (desconto_tipo && !TIPOS_DESCONTO.includes(desconto_tipo)) {
+      return res.status(400).json({ message: 'desconto_tipo deve ser "valor" ou "percentual".' });
+    }
+    if (desconto_valor !== undefined && desconto_valor !== null && Number(desconto_valor) < 0) {
+      return res.status(400).json({ message: 'desconto_valor deve ser maior ou igual a zero.' });
+    }
+    const aluno = await alunoModel.findById(req.params.id);
+    if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
+    const fatura = await alunoModel.createFatura(
+      req.params.id, { valor, data_vencimento, observacoes, desconto_tipo, desconto_valor }, req.user.id
+    );
+    return res.status(201).json(fatura);
+  } catch (err) {
+    console.error('[admin/createFatura]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function updateFatura(req, res) {
+  try {
+    const { valor, desconto_tipo, desconto_valor } = req.body;
+    if (valor !== undefined && Number(valor) <= 0) {
+      return res.status(400).json({ message: 'valor deve ser positivo.' });
+    }
+    const TIPOS_DESCONTO = ['valor', 'percentual'];
+    if (desconto_tipo !== undefined && desconto_tipo !== null && !TIPOS_DESCONTO.includes(desconto_tipo)) {
+      return res.status(400).json({ message: 'desconto_tipo deve ser "valor", "percentual" ou null.' });
+    }
+    if (desconto_valor !== undefined && desconto_valor !== null && Number(desconto_valor) < 0) {
+      return res.status(400).json({ message: 'desconto_valor deve ser maior ou igual a zero.' });
+    }
+    const result = await alunoModel.updateFatura(req.params.id, req.body);
+    if (result.notFound) return res.status(404).json({ message: 'Fatura não encontrada.' });
+    if (result.jaPago) return res.status(400).json({ message: 'Fatura já baixada não pode ser editada.' });
+    return res.json({ message: 'Fatura atualizada.', fatura: result.fatura });
+  } catch (err) {
+    console.error('[admin/updateFatura]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function darBaixaFatura(req, res) {
+  try {
+    const { data_baixa, metodo_baixa, observacoes } = req.body;
+    if (!data_baixa || !metodo_baixa) {
+      return res.status(400).json({ message: 'data_baixa e metodo_baixa são obrigatórios.' });
+    }
+    const METODOS = ['dinheiro','pix','cartao_credito','cartao_debito','transferencia'];
+    if (!METODOS.includes(metodo_baixa)) {
+      return res.status(400).json({ message: `metodo_baixa inválido. Use: ${METODOS.join(', ')}` });
+    }
+    const result = await alunoModel.darBaixaFatura(req.params.id, { data_baixa, metodo_baixa, observacoes });
+    if (result.notFound) return res.status(404).json({ message: 'Fatura não encontrada.' });
+    if (result.jaPago) return res.status(400).json({ message: 'Fatura já está paga.' });
+    return res.json(result.fatura);
+  } catch (err) {
+    console.error('[admin/darBaixaFatura]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function deleteFatura(req, res) {
+  try {
+    const result = await alunoModel.deleteFatura(req.params.id);
+    if (result.notFound) return res.status(404).json({ message: 'Fatura não encontrada.' });
+    if (result.jaPago) return res.status(400).json({ message: 'Não é possível remover fatura já paga.' });
+    return res.json({ message: 'Fatura removida.' });
+  } catch (err) {
+    console.error('[admin/deleteFatura]', err);
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -792,11 +934,102 @@ async function deleteSuplemento(req, res) {
   }
 }
 
+// ─── PDF: download direto e envio por email ───────────────────────────────────
+
+function slugProtocolo(nome) {
+  return String(nome || 'protocolo')
+    .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'protocolo';
+}
+
+async function baixarProtocoloPdf(req, res) {
+  const { id } = req.params;
+  try {
+    const protocolo = await alunoModel.findProtocoloById(id);
+    if (!protocolo) return res.status(404).json({ message: 'Protocolo não encontrado.' });
+
+    const aluno = await alunoModel.findById(protocolo.aluno_id);
+    if (!aluno) return res.status(404).json({ message: 'Aluno do protocolo não encontrado.' });
+
+    const [refeicoes, treinos, suplementacao, medidas] = await Promise.all([
+      protocolo.modulo_alimentar      ? alunoModel.findRefeicoes(id)      : Promise.resolve([]),
+      protocolo.modulo_treino         ? alunoModel.findTreinos(id)        : Promise.resolve([]),
+      protocolo.modulo_suplementacao  ? alunoModel.findSuplementacao(id)  : Promise.resolve([]),
+      alunoModel.findMedidas(protocolo.aluno_id),
+    ]);
+
+    const medidaFisica = (medidas && medidas.length) ? medidas[0] : null;
+    const pdfBuffer = await gerarPDFProtocolo({
+      aluno, protocolo, refeicoes, treinos, suplementacao, medidaFisica,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="protocolo-${slugProtocolo(protocolo.nome)}.pdf"`);
+    return res.send(pdfBuffer);
+  } catch (err) {
+    console.error('[admin/baixarProtocoloPdf]', err);
+    return res.status(500).json({ message: 'Erro ao gerar o PDF. Tente novamente.' });
+  }
+}
+
+async function enviarProtocoloPdf(req, res) {
+  const { id } = req.params;
+  try {
+    const protocolo = await alunoModel.findProtocoloById(id);
+    if (!protocolo) return res.status(404).json({ message: 'Protocolo não encontrado.' });
+
+    const aluno = await alunoModel.findById(protocolo.aluno_id);
+    if (!aluno) return res.status(404).json({ message: 'Aluno do protocolo não encontrado.' });
+    if (!aluno.email) return res.status(400).json({ message: 'Aluno sem email cadastrado.' });
+
+    const [refeicoes, treinos, suplementacao, medidas] = await Promise.all([
+      protocolo.modulo_alimentar      ? alunoModel.findRefeicoes(id)      : Promise.resolve([]),
+      protocolo.modulo_treino         ? alunoModel.findTreinos(id)        : Promise.resolve([]),
+      protocolo.modulo_suplementacao  ? alunoModel.findSuplementacao(id)  : Promise.resolve([]),
+      alunoModel.findMedidas(protocolo.aluno_id),
+    ]);
+
+    const medidaFisica = (medidas && medidas.length) ? medidas[0] : null;
+
+    let pdfBuffer;
+    try {
+      pdfBuffer = await gerarPDFProtocolo({
+        aluno, protocolo, refeicoes, treinos, suplementacao, medidaFisica,
+      });
+    } catch (err) {
+      console.error('[admin/enviarProtocoloPdf/puppeteer]', err);
+      return res.status(500).json({ message: `Falha ao gerar PDF: ${err.message}` });
+    }
+
+    try {
+      await enviarProtocoloPorEmail({
+        emailDestinatario: aluno.email,
+        nomeAluno: aluno.nome,
+        nomeProtocolo: protocolo.nome,
+        pdfBuffer,
+      });
+    } catch (err) {
+      console.error('[admin/enviarProtocoloPdf/resend]', err.message);
+      const isConfig = err.message && err.message.includes('não configurad');
+      return res.status(500).json({
+        message: isConfig ? err.message : 'Erro ao enviar o PDF. Tente novamente.',
+      });
+    }
+
+    return res.json({ message: `Protocolo enviado para ${aluno.email}` });
+  } catch (err) {
+    console.error('[admin/enviarProtocoloPdf]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 module.exports = {
   listAlunos, createAluno, getAluno, updateAluno, ativarAluno, desativarAluno,
-  listMedidas, createMedida,
-  listFotos, createFoto, deleteFoto,
+  redefinirSenhaAluno,
+  listMedidas, createMedida, getMedida, updateMedida, deleteMedida,
+  listFotos, deleteFoto,
   listPagamentos, listPagamentosAluno, createPagamento,
+  listFaturasAluno, createFatura, updateFatura, darBaixaFatura, deleteFatura,
   listExercicios, createExercicio, getExercicio, updateExercicio, ativarExercicio, desativarExercicio,
   listAlimentos, createAlimento, getAlimento, updateAlimento, ativarAlimento, desativarAlimento,
   listCardio, createCardio, getCardio, updateCardio, desativarCardio,
@@ -807,4 +1040,5 @@ module.exports = {
   listTreinos, createTreino, updateTreino, deleteTreino,
   createTreinoExercicio, updateTreinoExercicio, deleteTreinoExercicio, reordenarTreinoExercicios,
   listSuplementacao, createSuplemento, updateSuplemento, deleteSuplemento,
+  enviarProtocoloPdf, baixarProtocoloPdf,
 };

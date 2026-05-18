@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import api from '../../services/api';
 import { useToast, errorMessage } from '../../components/ui/Toast';
 import { Card } from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
 import MacroBar from '../../components/MacroBar';
 
 const TABS = [
@@ -27,6 +28,27 @@ export default function MeuProtocolo() {
   const [sups, setSups] = useState([]);
   const [tab, setTab] = useState('alimentacao');
   const [loading, setLoading] = useState(true);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [baixando, setBaixando] = useState(false);
+
+  async function baixarPDF() {
+    setBaixando(true);
+    try {
+      const res = await api.get(`/aluno/protocolos/${id}/pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `protocolo-${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBaixando(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -41,10 +63,34 @@ export default function MeuProtocolo() {
         setRefeicoes(r.data);
         setTreinos(t.data);
         setSups(s.data);
-      } catch (err) { toast.error(errorMessage(err)); }
+      } catch (err) {
+        if (err?.response?.status === 403 && err?.response?.data?.code === 'INADIMPLENTE') {
+          setBloqueado(true);
+        } else {
+          toast.error(errorMessage(err));
+        }
+      }
       finally { setLoading(false); }
     })();
   }, [id, toast]);
+
+  if (bloqueado) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center p-6">
+        <div className="max-w-md text-center space-y-5">
+          <div className="w-20 h-20 mx-auto rounded-full bg-brand/10 border border-brand/40 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c-1.1 0-2 .9-2 2v2a2 2 0 104 0v-2c0-1.1-.9-2-2-2zm6-3V7a6 6 0 10-12 0v1H4v13h16V8h-2zM8 7a4 4 0 118 0v1H8V7z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-black tracking-tight text-white uppercase">Acesso bloqueado</h1>
+          <p className="text-zinc-400 text-sm">
+            Sua mensalidade está em atraso. Entre em contato com seu professor.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const total = useMemo(() => refeicoes.reduce((a, r) => ({
     kcal: a.kcal + Number(r.total_kcal || 0),
@@ -63,10 +109,20 @@ export default function MeuProtocolo() {
         ← Meu perfil
       </Link>
 
-      <header>
-        <div className="text-section-label">Protocolo</div>
-        <h1 className="text-page-title mt-1">{protocolo.nome}</h1>
-        <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{protocolo.fase}</div>
+      <header className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-section-label">Protocolo</div>
+          <h1 className="text-page-title mt-1">{protocolo.nome}</h1>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{protocolo.fase}</div>
+        </div>
+        <Button
+          onClick={baixarPDF}
+          disabled={baixando}
+          variant="ghost"
+          className="text-zinc-400 border border-zinc-700 hover:text-white text-xs"
+        >
+          {baixando ? 'Gerando…' : '⬇ Baixar PDF'}
+        </Button>
       </header>
 
       <nav className="flex border-b border-surface-border">

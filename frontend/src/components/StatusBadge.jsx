@@ -1,15 +1,20 @@
 import clsx from 'clsx';
 
 const STYLES = {
-  ativo: 'bg-green-950 text-green-400 border-green-900',
+  neutro: 'bg-zinc-800 text-zinc-400 border-zinc-700',
+  em_dia: 'bg-green-950 text-green-400 border-green-900',
   inadimplente: 'bg-red-950 text-red-400 border-red-900',
-  inativo: 'bg-zinc-800 text-zinc-400 border-zinc-700',
+  inativo: 'bg-zinc-700 text-zinc-500 border-zinc-600',
+  // legado
+  ativo: 'bg-green-950 text-green-400 border-green-900',
 };
 
 const LABELS = {
-  ativo: 'Ativo',
+  neutro: 'Sem fatura',
+  em_dia: 'Em dia',
   inadimplente: 'Inadimplente',
   inativo: 'Inativo',
+  ativo: 'Ativo',
 };
 
 export default function StatusBadge({ status, className = '' }) {

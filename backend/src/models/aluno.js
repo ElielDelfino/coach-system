@@ -13,14 +13,19 @@ function calcMacros(alimento, quantidade_g) {
   };
 }
 
-function statusAluno(ativo, vencimento) {
-  if (!ativo) return 'inativo';
-  const venc = vencimento ? new Date(vencimento) : null;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  if (!venc || venc < hoje) return 'inadimplente';
-  return 'ativo';
-}
+const STATUS_SQL = `
+  CASE
+    WHEN a.ativo = false THEN 'inativo'
+    WHEN NOT EXISTS (SELECT 1 FROM faturas WHERE aluno_id = a.id) THEN 'neutro'
+    WHEN EXISTS (
+      SELECT 1 FROM faturas
+      WHERE aluno_id = a.id
+      AND status = 'pendente'
+      AND data_vencimento + (a.dias_tolerancia || ' days')::interval < NOW()
+    ) THEN 'inadimplente'
+    ELSE 'em_dia'
+  END
+`;
 
 // ─── alunos ───────────────────────────────────────────────────────────────────
 
@@ -36,18 +41,17 @@ async function findAll({ ativo = true, busca = null, page = 1, limit = 20 }) {
 
   const dataQ = `
     SELECT a.id, a.user_id, a.nome, u.email, a.telefone, a.ativo, a.created_at,
-           MAX(p.vencimento) AS vencimento_plano
+           a.dias_tolerancia, a.periodicidade_dias,
+           ${STATUS_SQL} AS status
     FROM alunos a
     JOIN users u ON u.id = a.user_id
-    LEFT JOIN pagamentos p ON p.aluno_id = a.id
     ${where}
-    GROUP BY a.id, a.user_id, a.nome, u.email, a.telefone, a.ativo, a.created_at
     ORDER BY a.nome
     LIMIT $2 OFFSET $3
   `;
 
   const countQ = `
-    SELECT COUNT(DISTINCT a.id) AS total
+    SELECT COUNT(*) AS total
     FROM alunos a
     JOIN users u ON u.id = a.user_id
     ${where}
@@ -58,27 +62,17 @@ async function findAll({ ativo = true, busca = null, page = 1, limit = 20 }) {
     pool.query(countQ, busca ? [ativo, `%${busca}%`] : [ativo]),
   ]);
 
-  const data = dataRes.rows.map((r) => ({
-    ...r,
-    status: statusAluno(r.ativo, r.vencimento_plano),
-  }));
-
-  return { data, total: Number(countRes.rows[0].total), page, limit };
+  return { data: dataRes.rows, total: Number(countRes.rows[0].total), page, limit };
 }
 
 async function findById(id) {
   const { rows } = await pool.query(
     `SELECT a.id, a.user_id, a.nome, u.email, a.telefone, a.data_nascimento, a.sexo,
             a.objetivo, a.restricoes, a.lesoes, a.observacoes, a.ativo,
+            a.dias_tolerancia, a.periodicidade_dias,
             a.created_at, a.updated_at,
-            MAX(p.vencimento) AS vencimento_plano,
-            (SELECT json_build_object(
-               'data_medicao', am.data_medicao,
-               'peso_kg', am.peso_kg,
-               'percentual_gordura', am.percentual_gordura,
-               'peso_magro_kg', am.peso_magro_kg,
-               'peso_gordo_kg', am.peso_gordo_kg
-             )
+            ${STATUS_SQL} AS status,
+            (SELECT to_jsonb(am.*)
              FROM aluno_medidas am
              WHERE am.aluno_id = a.id
              ORDER BY am.data_medicao DESC
@@ -86,18 +80,13 @@ async function findById(id) {
             ) AS ultima_medicao
      FROM alunos a
      JOIN users u ON u.id = a.user_id
-     LEFT JOIN pagamentos p ON p.aluno_id = a.id
-     WHERE a.id = $1
-     GROUP BY a.id, a.user_id, a.nome, u.email, a.telefone, a.data_nascimento, a.sexo,
-              a.objetivo, a.restricoes, a.lesoes, a.observacoes, a.ativo, a.created_at, a.updated_at`,
+     WHERE a.id = $1`,
     [id]
   );
-  if (!rows[0]) return null;
-  const r = rows[0];
-  return { ...r, status: statusAluno(r.ativo, r.vencimento_plano) };
+  return rows[0] || null;
 }
 
-async function create({ nome, email, senha_hash, telefone, data_nascimento, sexo, objetivo, restricoes, lesoes }) {
+async function create({ nome, email, senha_hash, telefone, data_nascimento, sexo, objetivo, restricoes, lesoes, dias_tolerancia, periodicidade_dias }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -108,14 +97,19 @@ async function create({ nome, email, senha_hash, telefone, data_nascimento, sexo
     );
     const u = uRes.rows[0];
     const aRes = await client.query(
-      `INSERT INTO alunos (user_id, nome, telefone, data_nascimento, sexo, objetivo, restricoes, lesoes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, created_at`,
+      `INSERT INTO alunos (user_id, nome, telefone, data_nascimento, sexo, objetivo, restricoes, lesoes,
+                           dias_tolerancia, periodicidade_dias)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, created_at, dias_tolerancia, periodicidade_dias`,
       [u.id, nome, telefone || null, data_nascimento || null, sexo || null,
-       objetivo || null, restricoes || null, lesoes || null]
+       objetivo || null, restricoes || null, lesoes || null,
+       dias_tolerancia ?? 7, periodicidade_dias ?? 30]
     );
     const a = aRes.rows[0];
     await client.query('COMMIT');
-    return { id: a.id, user_id: u.id, nome, email: u.email, created_at: a.created_at };
+    return {
+      id: a.id, user_id: u.id, nome, email: u.email, created_at: a.created_at,
+      dias_tolerancia: a.dias_tolerancia, periodicidade_dias: a.periodicidade_dias,
+    };
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
@@ -125,7 +119,7 @@ async function create({ nome, email, senha_hash, telefone, data_nascimento, sexo
 }
 
 async function update(id, fields) {
-  const allowed = ['nome', 'telefone', 'data_nascimento', 'sexo', 'objetivo', 'restricoes', 'lesoes', 'observacoes'];
+  const allowed = ['nome', 'telefone', 'data_nascimento', 'sexo', 'objetivo', 'restricoes', 'lesoes', 'observacoes', 'dias_tolerancia', 'periodicidade_dias'];
   const keys = allowed.filter((k) => fields[k] !== undefined);
   if (keys.length === 0) return;
   const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
@@ -133,6 +127,16 @@ async function update(id, fields) {
   const { rowCount } = await pool.query(
     `UPDATE alunos SET ${sets} WHERE id = $1`,
     [id, ...vals]
+  );
+  return rowCount;
+}
+
+async function updateSenhaByAlunoId(aluno_id, senha_hash) {
+  const { rowCount } = await pool.query(
+    `UPDATE users
+        SET senha_hash = $2
+      WHERE id = (SELECT user_id FROM alunos WHERE id = $1)`,
+    [aluno_id, senha_hash]
   );
   return rowCount;
 }
@@ -184,9 +188,10 @@ async function desativar(id) {
 async function findMedidas(aluno_id) {
   const { rows } = await pool.query(
     `SELECT id, data_medicao, peso_kg, altura_cm, percentual_gordura, peso_magro_kg,
-            peso_gordo_kg, cintura_cm, quadril_cm, torax_cm, braco_dir_cm, braco_esq_cm,
-            antebraco_dir_cm, antebraco_esq_cm, coxa_dir_cm, coxa_esq_cm,
-            panturrilha_dir_cm, panturrilha_esq_cm, observacoes, created_at
+            peso_gordo_kg, cintura_cm, quadril_cm, torax_cm, abdomen_cm,
+            braco_dir_cm, braco_esq_cm, antebraco_dir_cm, antebraco_esq_cm,
+            coxa_dir_cm, coxa_esq_cm, panturrilha_dir_cm, panturrilha_esq_cm,
+            observacoes, created_at
      FROM aluno_medidas
      WHERE aluno_id = $1
      ORDER BY data_medicao DESC`,
@@ -199,14 +204,15 @@ async function createMedida(aluno_id, d) {
   const { rows } = await pool.query(
     `INSERT INTO aluno_medidas
        (aluno_id, data_medicao, peso_kg, altura_cm, percentual_gordura, peso_magro_kg,
-        peso_gordo_kg, cintura_cm, quadril_cm, torax_cm, braco_dir_cm, braco_esq_cm,
-        antebraco_dir_cm, antebraco_esq_cm, coxa_dir_cm, coxa_esq_cm,
-        panturrilha_dir_cm, panturrilha_esq_cm, observacoes)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        peso_gordo_kg, cintura_cm, quadril_cm, torax_cm, abdomen_cm,
+        braco_dir_cm, braco_esq_cm, antebraco_dir_cm, antebraco_esq_cm,
+        coxa_dir_cm, coxa_esq_cm, panturrilha_dir_cm, panturrilha_esq_cm, observacoes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
      RETURNING id, data_medicao, created_at`,
     [aluno_id, d.data_medicao, d.peso_kg || null, d.altura_cm || null,
      d.percentual_gordura || null, d.peso_magro_kg || null, d.peso_gordo_kg || null,
      d.cintura_cm || null, d.quadril_cm || null, d.torax_cm || null,
+     d.abdomen_cm || null,
      d.braco_dir_cm || null, d.braco_esq_cm || null, d.antebraco_dir_cm || null,
      d.antebraco_esq_cm || null, d.coxa_dir_cm || null, d.coxa_esq_cm || null,
      d.panturrilha_dir_cm || null, d.panturrilha_esq_cm || null, d.observacoes || null]
@@ -214,22 +220,75 @@ async function createMedida(aluno_id, d) {
   return rows[0];
 }
 
+async function updateMedida(medidaId, aluno_id, d) {
+  const allowed = ['data_medicao','peso_kg','altura_cm','percentual_gordura','peso_magro_kg',
+    'peso_gordo_kg','cintura_cm','quadril_cm','torax_cm','abdomen_cm',
+    'braco_dir_cm','braco_esq_cm','antebraco_dir_cm','antebraco_esq_cm',
+    'coxa_dir_cm','coxa_esq_cm','panturrilha_dir_cm','panturrilha_esq_cm','observacoes'];
+  const keys = allowed.filter((k) => d[k] !== undefined);
+  if (!keys.length) return 0;
+  const sets = keys.map((k, i) => `${k} = $${i + 3}`).join(', ');
+  const vals = keys.map((k) => (d[k] === '' ? null : d[k]));
+  const { rowCount } = await pool.query(
+    `UPDATE aluno_medidas SET ${sets} WHERE id = $1 AND aluno_id = $2`,
+    [medidaId, aluno_id, ...vals]
+  );
+  return rowCount;
+}
+
+async function deleteMedida(medidaId, aluno_id) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM aluno_medidas WHERE id = $1 AND aluno_id = $2`,
+    [medidaId, aluno_id]
+  );
+  return rowCount;
+}
+
+async function findMedidaById(medidaId, aluno_id) {
+  const { rows } = await pool.query(
+    `SELECT * FROM aluno_medidas WHERE id = $1 AND aluno_id = $2`,
+    [medidaId, aluno_id]
+  );
+  return rows[0] || null;
+}
+
 // ─── aluno_fotos ──────────────────────────────────────────────────────────────
+
+function toIsoDate(d) {
+  if (!d) return null;
+  if (typeof d === 'string') return d.slice(0, 10);
+  try { return new Date(d).toISOString().slice(0, 10); } catch { return String(d); }
+}
+
+function agruparFotosPorData(rows) {
+  const grupos = new Map();
+  for (const r of rows) {
+    const key = toIsoDate(r.data_foto);
+    if (!grupos.has(key)) grupos.set(key, []);
+    grupos.get(key).push({ id: r.id, url: r.url, posicao: r.posicao });
+  }
+  return Array.from(grupos.entries())
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([data, fotos]) => ({ data, fotos }));
+}
 
 async function findFotos(aluno_id) {
   const { rows } = await pool.query(
-    `SELECT id, url, posicao, data_foto, created_at
-     FROM aluno_fotos WHERE aluno_id = $1 ORDER BY data_foto DESC`,
+    `SELECT id, url, posicao, data_foto, enviada_por, created_at
+     FROM aluno_fotos WHERE aluno_id = $1 ORDER BY data_foto DESC, created_at DESC`,
     [aluno_id]
   );
-  return rows;
+  return agruparFotosPorData(rows);
 }
 
-async function createFoto(aluno_id, { url, posicao, data_foto }) {
+async function createFoto(aluno_id, { url, posicao, data_foto, enviada_por }) {
   const { rows } = await pool.query(
-    `INSERT INTO aluno_fotos (aluno_id, url, posicao, data_foto)
-     VALUES ($1,$2,$3,$4) RETURNING id, url, posicao, data_foto`,
-    [aluno_id, url, posicao, data_foto || new Date().toISOString().slice(0, 10)]
+    `INSERT INTO aluno_fotos (aluno_id, url, posicao, data_foto, enviada_por)
+     VALUES ($1,$2,$3,$4,$5)
+     RETURNING id, url, posicao, data_foto, created_at`,
+    [aluno_id, url, posicao,
+     data_foto || new Date().toISOString().slice(0, 10),
+     enviada_por || null]
   );
   return rows[0];
 }
@@ -246,16 +305,24 @@ async function deleteFoto(fotoId, aluno_id) {
 
 async function findAllPagamentos({ aluno_id, vencendo_em, page = 1, limit = 20 }) {
   const offset = (page - 1) * limit;
-  const params = [limit, offset];
+  const filterParams = [];
   const conditions = [];
 
-  if (aluno_id) { params.push(aluno_id); conditions.push(`p.aluno_id = $${params.length}`); }
+  if (aluno_id) {
+    filterParams.push(aluno_id);
+    conditions.push(`p.aluno_id = $${filterParams.length}`);
+  }
   if (vencendo_em) {
-    params.push(vencendo_em);
-    conditions.push(`p.vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + ($${params.length} || ' days')::interval`);
+    filterParams.push(vencendo_em);
+    conditions.push(`p.vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + ($${filterParams.length} || ' days')::interval`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // dataQ usa filterParams + limit + offset no final
+  const dataParams = [...filterParams, limit, offset];
+  const limitIdx = dataParams.length - 1;
+  const offsetIdx = dataParams.length;
 
   const dataQ = `
     SELECT p.id, p.aluno_id, a.nome AS nome_aluno, p.valor, p.data_pagamento,
@@ -264,14 +331,19 @@ async function findAllPagamentos({ aluno_id, vencendo_em, page = 1, limit = 20 }
     JOIN alunos a ON a.id = p.aluno_id
     ${where}
     ORDER BY p.created_at DESC
-    LIMIT $1 OFFSET $2
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;
-  const countQ = `SELECT COUNT(*) AS total FROM pagamentos p JOIN alunos a ON a.id = p.aluno_id ${where}`;
-  const countParams = conditions.length ? params.slice(2) : [];
+
+  const countQ = `
+    SELECT COUNT(*) AS total
+    FROM pagamentos p
+    JOIN alunos a ON a.id = p.aluno_id
+    ${where}
+  `;
 
   const [d, c] = await Promise.all([
-    pool.query(dataQ, params),
-    pool.query(countQ, countParams),
+    pool.query(dataQ, dataParams),
+    pool.query(countQ, filterParams),
   ]);
   return { data: d.rows, total: Number(c.rows[0].total), page, limit };
 }
@@ -292,6 +364,135 @@ async function createPagamento(aluno_id, { valor, data_pagamento, metodo, vencim
     [aluno_id, registrado_por, valor, data_pagamento, metodo, vencimento, observacoes || null]
   );
   return rows[0];
+}
+
+// ─── faturas ──────────────────────────────────────────────────────────────────
+
+function calcValorFinal(f) {
+  const valor = Number(f.valor);
+  if (!f.desconto_tipo || f.desconto_valor == null) return valor;
+  if (f.desconto_tipo === 'valor') return Math.max(0, valor - Number(f.desconto_valor));
+  if (f.desconto_tipo === 'percentual') return Math.max(0, valor * (1 - Number(f.desconto_valor) / 100));
+  return valor;
+}
+
+function recalcFaturaStatus(f) {
+  const out = { ...f, valor_final: calcValorFinal(f) };
+  if (f.status === 'pago') return out;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  if (new Date(f.data_vencimento) < hoje) return { ...out, status: 'vencido' };
+  return out;
+}
+
+async function findFaturasByAluno(aluno_id) {
+  const { rows } = await pool.query(
+    `SELECT id, valor, data_vencimento, data_baixa, metodo_baixa, status, observacoes,
+            desconto_tipo, desconto_valor, created_at
+     FROM faturas WHERE aluno_id = $1 ORDER BY data_vencimento DESC`,
+    [aluno_id]
+  );
+  return rows.map(recalcFaturaStatus);
+}
+
+async function findFaturasByAlunoUserId(user_id) {
+  const { rows } = await pool.query(
+    `SELECT f.id, f.valor, f.data_vencimento, f.status, f.data_baixa,
+            f.desconto_tipo, f.desconto_valor
+     FROM faturas f
+     JOIN alunos a ON a.id = f.aluno_id
+     WHERE a.user_id = $1
+     ORDER BY f.data_vencimento DESC`,
+    [user_id]
+  );
+  return rows.map(recalcFaturaStatus);
+}
+
+async function createFatura(aluno_id, { valor, data_vencimento, observacoes, desconto_tipo, desconto_valor }, registrado_por) {
+  const { rows } = await pool.query(
+    `INSERT INTO faturas (aluno_id, valor, data_vencimento, observacoes, registrado_por, status, desconto_tipo, desconto_valor)
+     VALUES ($1,$2,$3,$4,$5,'pendente',$6,$7)
+     RETURNING id, valor, data_vencimento, status, observacoes, desconto_tipo, desconto_valor, created_at`,
+    [aluno_id, valor, data_vencimento, observacoes || null, registrado_por,
+     desconto_tipo || null, desconto_valor != null ? desconto_valor : null]
+  );
+  const f = rows[0];
+  return { ...f, valor_final: calcValorFinal(f) };
+}
+
+async function findFaturaById(id) {
+  const { rows } = await pool.query(
+    `SELECT id, aluno_id, valor, data_vencimento, data_baixa, metodo_baixa, status, observacoes,
+            desconto_tipo, desconto_valor
+     FROM faturas WHERE id = $1`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+async function updateFatura(id, body) {
+  const fatura = await findFaturaById(id);
+  if (!fatura) return { notFound: true };
+  if (fatura.status === 'pago') return { jaPago: true };
+
+  const params = [id];
+  const fields = [];
+  function addField(col, val) {
+    params.push(val);
+    fields.push(`${col} = $${params.length}`);
+  }
+
+  if ('valor' in body)           addField('valor', body.valor);
+  if ('data_vencimento' in body) addField('data_vencimento', body.data_vencimento);
+  if ('observacoes' in body)     addField('observacoes', body.observacoes ?? null);
+  if ('desconto_tipo' in body)   addField('desconto_tipo', body.desconto_tipo ?? null);
+  if ('desconto_valor' in body)  addField('desconto_valor', body.desconto_valor ?? null);
+
+  // recalcula status com base no vencimento efetivo
+  const effectiveVenc = ('data_vencimento' in body ? body.data_vencimento : null) || fatura.data_vencimento;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  addField('status', new Date(effectiveVenc) >= hoje ? 'pendente' : 'vencido');
+
+  const { rows } = await pool.query(
+    `UPDATE faturas SET ${fields.join(', ')} WHERE id = $1
+     RETURNING id, valor, data_vencimento, data_baixa, metodo_baixa, status, observacoes,
+               desconto_tipo, desconto_valor`,
+    params
+  );
+  const updated = rows[0];
+  return { fatura: { ...updated, valor_final: calcValorFinal(updated) } };
+}
+
+async function darBaixaFatura(id, { data_baixa, metodo_baixa, observacoes }) {
+  const fatura = await findFaturaById(id);
+  if (!fatura) return { notFound: true };
+  if (fatura.status === 'pago') return { jaPago: true };
+
+  const fields = ['status = $2', 'data_baixa = $3', 'metodo_baixa = $4'];
+  const params = [id, 'pago', data_baixa, metodo_baixa];
+  if (observacoes !== undefined) {
+    params.push(observacoes);
+    fields.push(`observacoes = $${params.length}`);
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE faturas SET ${fields.join(', ')} WHERE id = $1
+     RETURNING id, valor, data_vencimento, data_baixa, metodo_baixa, status, observacoes,
+               desconto_tipo, desconto_valor`,
+    params
+  );
+  const updated = rows[0];
+  return { fatura: { ...updated, valor_final: calcValorFinal(updated) } };
+}
+
+async function deleteFatura(id) {
+  const fatura = await findFaturaById(id);
+  if (!fatura) return { notFound: true };
+  if (fatura.status === 'pago') return { jaPago: true };
+
+  await pool.query(`DELETE FROM faturas WHERE id = $1`, [id]);
+  return { ok: true };
 }
 
 // ─── exercicios ───────────────────────────────────────────────────────────────
@@ -369,7 +570,7 @@ async function findAlimentos({ categoria, ativo = true, busca }) {
   const where = `WHERE ${conditions.join(' AND ')}`;
   const { rows } = await pool.query(
     `SELECT id, nome, categoria, quantidade_base, unidade, calorias,
-            proteinas, carboidratos, gorduras, ativo
+            proteinas, carboidratos, gorduras, foto_url, ativo
      FROM alimentos AS al ${where} ORDER BY al.nome`,
     params
   );
@@ -912,29 +1113,29 @@ async function findPerfil(user_id) {
   const { rows } = await pool.query(
     `SELECT a.id, a.nome, u.email, a.telefone, a.data_nascimento, a.sexo,
             a.objetivo, a.restricoes, a.lesoes, a.ativo,
-            MAX(p.vencimento) AS vencimento_plano
+            a.dias_tolerancia, a.periodicidade_dias,
+            ${STATUS_SQL} AS status
      FROM alunos a
      JOIN users u ON u.id = a.user_id
-     LEFT JOIN pagamentos p ON p.aluno_id = a.id
-     WHERE a.user_id = $1
-     GROUP BY a.id, a.nome, u.email, a.telefone, a.data_nascimento, a.sexo,
-              a.objetivo, a.restricoes, a.lesoes, a.ativo`,
+     WHERE a.user_id = $1`,
     [user_id]
   );
-  if (!rows[0]) return null;
-  const r = rows[0];
-  return { ...r, status: statusAluno(r.ativo, r.vencimento_plano) };
+  return rows[0] || null;
 }
 
 module.exports = {
   // alunos
   findAll, findById, create, update, ativar, desativar, findPerfil,
+  updateSenhaByAlunoId,
   // medidas
-  findMedidas, createMedida,
+  findMedidas, createMedida, updateMedida, deleteMedida, findMedidaById,
   // fotos
   findFotos, createFoto, deleteFoto,
   // pagamentos
   findAllPagamentos, findPagamentos, createPagamento,
+  // faturas
+  findFaturasByAluno, findFaturasByAlunoUserId, createFatura, findFaturaById,
+  updateFatura, darBaixaFatura, deleteFatura,
   // exercicios
   findExercicios, findExercicioById, createExercicio, updateExercicio, setExercicioAtivo,
   // alimentos

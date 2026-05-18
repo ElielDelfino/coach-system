@@ -84,8 +84,9 @@ export default function Alunos() {
         <div className="flex gap-1.5">
           {[
             { v: 'todos', l: 'Todos' },
-            { v: 'ativo', l: 'Ativos' },
+            { v: 'em_dia', l: 'Em dia' },
             { v: 'inadimplente', l: 'Inadimplentes' },
+            { v: 'neutro', l: 'Sem fatura' },
             { v: 'inativo', l: 'Inativos' },
           ].map((opt) => (
             <button
@@ -112,7 +113,7 @@ export default function Alunos() {
               <th className="text-left px-5 py-3 font-semibold">E-mail</th>
               <th className="text-left px-5 py-3 font-semibold">Telefone</th>
               <th className="text-left px-5 py-3 font-semibold">Status</th>
-              <th className="text-left px-5 py-3 font-semibold">Vencimento</th>
+              <th className="text-left px-5 py-3 font-semibold">Tolerância</th>
               <th className="text-right px-5 py-3 font-semibold">Ação</th>
             </tr>
           </thead>
@@ -136,7 +137,7 @@ export default function Alunos() {
                 <td className="px-5 py-3 text-zinc-400">{a.email}</td>
                 <td className="px-5 py-3 text-zinc-500 tabular-nums">{a.telefone || '—'}</td>
                 <td className="px-5 py-3"><StatusBadge status={a.status} /></td>
-                <td className="px-5 py-3 text-zinc-400 tabular-nums">{formatDate(a.vencimento_plano)}</td>
+                <td className="px-5 py-3 text-zinc-400 tabular-nums">{a.dias_tolerancia ?? 7} dias</td>
                 <td className="px-5 py-3 text-right">
                   <Link to={`/admin/alunos/${a.id}`} className="text-xs uppercase tracking-widest font-bold text-brand hover:text-brand-dark">
                     Ver
@@ -177,6 +178,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
   const [form, setForm] = useState({
     nome: '', email: '', senha: '', telefone: '',
     data_nascimento: '', sexo: '', objetivo: '', restricoes: '', lesoes: '',
+    dias_tolerancia: 7, periodicidade_dias: 30,
   });
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
@@ -197,7 +199,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
       Object.keys(payload).forEach((k) => payload[k] === '' && delete payload[k]);
       await api.post('/admin/alunos', payload);
       toast.success('Aluno cadastrado com sucesso.');
-      setForm({ nome: '', email: '', senha: '', telefone: '', data_nascimento: '', sexo: '', objetivo: '', restricoes: '', lesoes: '' });
+      setForm({ nome: '', email: '', senha: '', telefone: '', data_nascimento: '', sexo: '', objetivo: '', restricoes: '', lesoes: '', dias_tolerancia: 7, periodicidade_dias: 30 });
       onCreated();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -254,6 +256,24 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
         <Field label="Objetivo">
           <Input value={form.objetivo} onChange={(e) => set('objetivo', e.target.value)} placeholder="Ex: hipertrofia, emagrecimento…" />
         </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Dias de tolerância para inadimplência">
+            <Input
+              type="number"
+              min={0}
+              value={form.dias_tolerancia}
+              onChange={(e) => set('dias_tolerancia', Number(e.target.value))}
+            />
+          </Field>
+          <Field label="Periodicidade do plano (dias)">
+            <Input
+              type="number"
+              min={1}
+              value={form.periodicidade_dias}
+              onChange={(e) => set('periodicidade_dias', Number(e.target.value))}
+            />
+          </Field>
+        </div>
         <Field label="Restrições">
           <textarea
             value={form.restricoes}

@@ -15,39 +15,30 @@ function iniciais(nome) {
     .join('');
 }
 
-function formatDate(d) {
-  if (!d) return '—';
-  try {
-    return new Date(d).toLocaleDateString('pt-BR');
-  } catch {
-    return d;
-  }
-}
-
 export default function Dashboard() {
   const toast = useToast();
-  const [stats, setStats] = useState({ total: 0, vencendo: 0 });
+  const [stats, setStats] = useState({ total: 0 });
   const [alunos, setAlunos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const [resAtivos, resInativos, resVencendo] = await Promise.all([
-          api.get('/admin/alunos', { params: { ativo: true, limit: 100 } }),
-          api.get('/admin/alunos', { params: { ativo: false, limit: 100 } }),
-          api.get('/admin/pagamentos', { params: { vencendo_em: 7 } }),
+        const [resAtivos, resInativos] = await Promise.all([
+          api.get('/admin/alunos', { params: { ativo: true, limit: 200 } }),
+          api.get('/admin/alunos', { params: { ativo: false, limit: 200 } }),
         ]);
 
         const ativos = resAtivos.data.data || [];
         const inativos = resInativos.data.data || [];
+        const todos = [...ativos, ...inativos];
 
         setAlunos(ativos.slice(0, 8));
         setStats({
           total: (resAtivos.data.total || 0) + (resInativos.data.total || 0),
-          ativos: ativos.filter((a) => a.status === 'ativo').length,
-          inadimplentes: ativos.filter((a) => a.status === 'inadimplente').length + inativos.filter((a) => a.status === 'inadimplente').length,
-          vencendo: resVencendo.data.total || 0,
+          em_dia: todos.filter((a) => a.status === 'em_dia').length,
+          inadimplentes: todos.filter((a) => a.status === 'inadimplente').length,
+          neutros: todos.filter((a) => a.status === 'neutro').length,
         });
       } catch (err) {
         toast.error(errorMessage(err));
@@ -66,9 +57,9 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard label="Total de alunos" value={loading ? '…' : stats.total} accent />
-        <MetricCard label="Ativos" value={loading ? '…' : stats.ativos ?? 0} />
+        <MetricCard label="Em dia" value={loading ? '…' : stats.em_dia ?? 0} />
         <MetricCard label="Inadimplentes" value={loading ? '…' : stats.inadimplentes ?? 0} />
-        <MetricCard label="Vencendo em 7 dias" value={loading ? '…' : stats.vencendo ?? 0} />
+        <MetricCard label="Sem fatura" value={loading ? '…' : stats.neutros ?? 0} />
       </div>
 
       <section>
@@ -88,7 +79,7 @@ export default function Dashboard() {
                 <th className="text-left px-5 py-3 font-semibold">Aluno</th>
                 <th className="text-left px-5 py-3 font-semibold">E-mail</th>
                 <th className="text-left px-5 py-3 font-semibold">Status</th>
-                <th className="text-left px-5 py-3 font-semibold">Vencimento</th>
+                <th className="text-left px-5 py-3 font-semibold">Tolerância</th>
                 <th className="text-right px-5 py-3 font-semibold">Ação</th>
               </tr>
             </thead>
@@ -125,7 +116,7 @@ export default function Dashboard() {
                     <StatusBadge status={a.status} />
                   </td>
                   <td className="px-5 py-3 text-zinc-400 tabular-nums">
-                    {formatDate(a.vencimento_plano)}
+                    {a.dias_tolerancia ?? 7} dias
                   </td>
                   <td className="px-5 py-3 text-right">
                     <Link

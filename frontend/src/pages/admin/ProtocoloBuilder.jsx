@@ -1,6 +1,14 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import clsx from 'clsx';
+import {
+  DndContext, closestCenter, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import api from '../../services/api';
 import { useToast, errorMessage } from '../../components/ui/Toast';
 import { Card } from '../../components/ui/Card';
@@ -13,7 +21,6 @@ import { Field } from './Alunos';
 const MODULOS = [
   { id: 'alimentar', label: 'Alimentar', flag: 'modulo_alimentar' },
   { id: 'treino', label: 'Treino', flag: 'modulo_treino' },
-  { id: 'cardio', label: 'Cardio', flag: 'modulo_cardio' },
   { id: 'suplementacao', label: 'Suplementação', flag: 'modulo_suplementacao' },
   { id: 'observacoes', label: 'Observações', flag: null },
 ];
@@ -90,7 +97,6 @@ export default function ProtocoloBuilder() {
       <main className="flex-1 min-w-0 overflow-y-auto p-6">
         {modulo === 'alimentar' && <ModuloAlimentar protocoloId={id} />}
         {modulo === 'treino' && <ModuloTreino protocoloId={id} />}
-        {modulo === 'cardio' && <ModuloCardio />}
         {modulo === 'suplementacao' && <ModuloSuplementacao protocoloId={id} />}
         {modulo === 'observacoes' && <ModuloObservacoes protocolo={protocolo} onSaved={loadProtocolo} />}
       </main>
@@ -241,8 +247,12 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [openAddItem, setOpenAddItem] = useState(false);
-  const [draggedId, setDraggedId] = useState(null);
   const [orderedItens, setOrderedItens] = useState(refeicao.itens || []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   useEffect(() => {
     setForm({ nome: refeicao.nome, horario_sugerido: refeicao.horario_sugerido || '' });
@@ -266,25 +276,18 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
     } catch (err) { toast.error(errorMessage(err)); }
   }
 
-  // Drag and drop nativo
-  function onDragStart(id) { setDraggedId(id); }
-  function onDragOver(e, overId) {
-    e.preventDefault();
-    if (!draggedId || draggedId === overId) return;
-    const arr = [...orderedItens];
-    const fromIdx = arr.findIndex((i) => i.id === draggedId);
-    const toIdx = arr.findIndex((i) => i.id === overId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const [moved] = arr.splice(fromIdx, 1);
-    arr.splice(toIdx, 0, moved);
-    setOrderedItens(arr);
-  }
-  async function onDragEnd() {
-    if (!draggedId) return;
-    setDraggedId(null);
-    const payload = orderedItens.map((i, idx) => ({ id: i.id, ordem: idx }));
+  async function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!active || !over || active.id === over.id) return;
+    const oldIndex = orderedItens.findIndex((i) => i.id === active.id);
+    const newIndex = orderedItens.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const novos = arrayMove(orderedItens, oldIndex, newIndex);
+    setOrderedItens(novos);
     try {
-      await api.patch(`/admin/refeicoes/${refeicao.id}/itens/reordenar`, { ordem: payload });
+      await api.patch(`/admin/refeicoes/${refeicao.id}/itens/reordenar`, {
+        ordem: novos.map((i, idx) => ({ id: i.id, ordem: idx })),
+      });
       onChange();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -327,50 +330,49 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
       </header>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-section-label border-b border-surface-border">
-              <th className="text-left px-3 py-2 font-semibold w-8"></th>
-              <th className="text-left px-3 py-2 font-semibold">Alimento</th>
-              <th className="text-right px-3 py-2 font-semibold">Qtd (g)</th>
-              <th className="text-right px-3 py-2 font-semibold">Kcal</th>
-              <th className="text-right px-3 py-2 font-semibold">Prot</th>
-              <th className="text-right px-3 py-2 font-semibold">Carb</th>
-              <th className="text-right px-3 py-2 font-semibold">Gord</th>
-              <th className="text-right px-3 py-2 font-semibold w-20">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orderedItens.length === 0 && (
-              <tr><td colSpan={8} className="text-center text-zinc-500 py-8">Nenhum item nesta refeição.</td></tr>
-            )}
-            {orderedItens.map((item) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                refeicaoId={refeicao.id}
-                onChange={onChange}
-                onRemove={() => removerItem(item.id)}
-                draggable
-                onDragStart={() => onDragStart(item.id)}
-                onDragOver={(e) => onDragOver(e, item.id)}
-                onDragEnd={onDragEnd}
-                isDragging={draggedId === item.id}
-              />
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="bg-surface-elevated border-t-2 border-surface-border">
-              <td colSpan={2} className="px-3 py-3 text-section-label">TOTAL</td>
-              <td className="px-3 py-3"></td>
-              <td className="px-3 py-3 text-right text-xl font-black text-brand tabular-nums">{fmt(refeicao.total_kcal)}</td>
-              <td className="px-3 py-3 text-right text-sky-400 tabular-nums">{fmt(refeicao.total_prot)}</td>
-              <td className="px-3 py-3 text-right text-amber-400 tabular-nums">{fmt(refeicao.total_carb)}</td>
-              <td className="px-3 py-3 text-right text-rose-400 tabular-nums">{fmt(refeicao.total_gord)}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-section-label border-b border-surface-border">
+                <th className="text-left px-2 py-2 font-semibold w-6"></th>
+                <th className="text-left px-3 py-2 font-semibold">Alimento</th>
+                <th className="text-right px-3 py-2 font-semibold">Qtd (g)</th>
+                <th className="text-right px-3 py-2 font-semibold">Kcal</th>
+                <th className="text-right px-3 py-2 font-semibold">Prot</th>
+                <th className="text-right px-3 py-2 font-semibold">Carb</th>
+                <th className="text-right px-3 py-2 font-semibold">Gord</th>
+                <th className="text-right px-3 py-2 font-semibold w-28">Ações</th>
+              </tr>
+            </thead>
+            <SortableContext items={orderedItens.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+              <tbody>
+                {orderedItens.length === 0 && (
+                  <tr><td colSpan={8} className="text-center text-zinc-500 py-8">Nenhum item nesta refeição.</td></tr>
+                )}
+                {orderedItens.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    refeicaoId={refeicao.id}
+                    onChange={onChange}
+                    onRemove={() => removerItem(item.id)}
+                  />
+                ))}
+              </tbody>
+            </SortableContext>
+            <tfoot>
+              <tr className="bg-surface-elevated border-t-2 border-surface-border">
+                <td colSpan={2} className="px-3 py-3 text-section-label">TOTAL</td>
+                <td className="px-3 py-3"></td>
+                <td className="px-3 py-3 text-right text-xl font-black text-brand tabular-nums">{fmt(refeicao.total_kcal)}</td>
+                <td className="px-3 py-3 text-right text-sky-400 tabular-nums">{fmt(refeicao.total_prot)}</td>
+                <td className="px-3 py-3 text-right text-amber-400 tabular-nums">{fmt(refeicao.total_carb)}</td>
+                <td className="px-3 py-3 text-right text-rose-400 tabular-nums">{fmt(refeicao.total_gord)}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </DndContext>
       </div>
 
       <div className="mt-4">
@@ -388,10 +390,18 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
   );
 }
 
-function ItemRow({ item, refeicaoId, onChange, onRemove, isDragging, ...dragProps }) {
+function ItemRow({ item, refeicaoId, onChange, onRemove }) {
   const toast = useToast();
   const [qtd, setQtd] = useState(item.quantidade_g);
   const [showSubst, setShowSubst] = useState(false);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   async function salvarQtd() {
     if (Number(qtd) === Number(item.quantidade_g)) return;
@@ -404,23 +414,27 @@ function ItemRow({ item, refeicaoId, onChange, onRemove, isDragging, ...dragProp
     }
   }
 
+  const subCount = item.substitutos?.length || 0;
+
   return (
     <>
       <tr
-        className={clsx(
-          'border-b border-surface-border text-zinc-300 cursor-move transition-opacity',
-          isDragging && 'opacity-40'
-        )}
-        {...dragProps}
+        ref={setNodeRef}
+        style={style}
+        className="border-b border-surface-border text-zinc-300"
       >
-        <td className="px-3 py-2 text-center text-zinc-700">⋮⋮</td>
+        <td className="px-2 py-2 w-6">
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 select-none text-base leading-none"
+            title="Arrastar para reordenar"
+          >
+            ⠿
+          </div>
+        </td>
         <td className="px-3 py-2">
           <div className="font-semibold text-white">{item.nome_alimento}</div>
-          {item.substitutos?.length > 0 && (
-            <div className="text-[10px] uppercase tracking-widest text-zinc-600 mt-0.5">
-              {item.substitutos.length} substituto(s)
-            </div>
-          )}
         </td>
         <td className="px-3 py-2 text-right">
           <Input
@@ -438,8 +452,18 @@ function ItemRow({ item, refeicaoId, onChange, onRemove, isDragging, ...dragProp
         <td className="px-3 py-2 text-right text-rose-400 tabular-nums">{fmt(item.gord_calculado)}</td>
         <td className="px-3 py-2 text-right">
           <div className="flex gap-1 justify-end">
-            <button onClick={() => setShowSubst((s) => !s)} title="Substitutos"
-              className="text-zinc-500 hover:text-brand text-xs px-1.5 py-0.5 border border-surface-border rounded">+</button>
+            <button
+              onClick={() => setShowSubst((s) => !s)}
+              className={clsx(
+                'text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border transition-colors',
+                subCount > 0
+                  ? 'text-brand border-brand/40 hover:bg-brand/10'
+                  : 'text-zinc-600 border-zinc-700 hover:text-zinc-400'
+              )}
+              title="Substitutos"
+            >
+              {subCount > 0 ? `Sub (${subCount})` : 'Sub'}
+            </button>
             <button onClick={onRemove} title="Remover"
               className="text-zinc-500 hover:text-red-400 text-xs px-1.5 py-0.5 border border-surface-border rounded">×</button>
           </div>
@@ -459,16 +483,52 @@ function ItemRow({ item, refeicaoId, onChange, onRemove, isDragging, ...dragProp
 
 function SubstitutosPanel({ item, refeicaoId, onChange }) {
   const toast = useToast();
-  const [openSearch, setOpenSearch] = useState(false);
+  const [busca, setBusca] = useState('');
+  const [resultados, setResultados] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [qtd, setQtd] = useState('');
+  const [showDrop, setShowDrop] = useState(false);
 
-  async function adicionar(alimento, quantidade_g) {
+  useEffect(() => {
+    if (selected || !busca.trim()) {
+      setResultados([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await api.get('/admin/alimentos', { params: { busca } });
+        setResultados(res.data.data || []);
+        setShowDrop(true);
+      } catch (err) { toast.error(errorMessage(err)); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [busca, selected, toast]);
+
+  function escolher(a) {
+    setSelected(a);
+    setBusca(a.nome);
+    if (!qtd) setQtd(a.quantidade_base);
+    setShowDrop(false);
+  }
+
+  function limpar() {
+    setSelected(null);
+    setBusca('');
+    setQtd('');
+    setResultados([]);
+    setShowDrop(false);
+  }
+
+  async function adicionar() {
+    if (!selected) { toast.error('Selecione um alimento.'); return; }
+    if (!qtd || Number(qtd) <= 0) { toast.error('Informe a quantidade.'); return; }
     try {
       await api.post(`/admin/refeicoes/${refeicaoId}/itens/${item.id}/substitutos`, {
-        alimento_id: alimento.id,
-        quantidade_g: Number(quantidade_g),
+        alimento_id: selected.id,
+        quantidade_g: Number(qtd),
       });
       toast.success('Substituto adicionado.');
-      setOpenSearch(false);
+      limpar();
       onChange();
     } catch (err) { toast.error(errorMessage(err)); }
   }
@@ -481,30 +541,68 @@ function SubstitutosPanel({ item, refeicaoId, onChange }) {
   }
 
   return (
-    <div>
-      <div className="text-section-label mb-2">Substitutos para {item.nome_alimento}</div>
-      <div className="space-y-1.5">
-        {(item.substitutos || []).map((s) => (
-          <div key={s.id} className="flex items-center justify-between bg-surface-card border border-surface-border rounded px-3 py-1.5 text-xs">
-            <div>
-              <span className="text-white font-semibold">{s.nome_alimento}</span>
-              <span className="text-zinc-500 ml-2 tabular-nums">{s.quantidade_g}g</span>
+    <div className="space-y-2">
+      <div className="text-section-label mb-2">Substituições para {item.nome_alimento}</div>
+
+      {(item.substitutos || []).map((s) => (
+        <div key={s.id} className="flex items-center gap-3 text-sm text-zinc-300">
+          <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">OU</span>
+          <span className="font-medium text-white">{s.nome_alimento}</span>
+          <span className="text-zinc-400 tabular-nums">{s.quantidade_g}g</span>
+          <button
+            onClick={() => remover(s.id)}
+            className="ml-auto text-zinc-600 hover:text-red-400 text-xs"
+          >
+            Remover
+          </button>
+        </div>
+      ))}
+      {item.substitutos?.length === 0 && (
+        <div className="text-xs text-zinc-600">Nenhum substituto cadastrado.</div>
+      )}
+
+      <div className="flex items-center gap-2 pt-2 mt-1 border-t border-surface-border">
+        <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">OU</span>
+        <div className="relative flex-1">
+          <Input
+            placeholder="Buscar alimento…"
+            value={busca}
+            onChange={(e) => { setBusca(e.target.value); setSelected(null); }}
+            onFocus={() => { if (resultados.length > 0) setShowDrop(true); }}
+            className="py-1 text-xs"
+          />
+          {showDrop && resultados.length > 0 && !selected && (
+            <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-surface-card border border-surface-border rounded-md shadow-lg">
+              {resultados.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => escolher(a)}
+                  className="w-full text-left px-3 py-2 text-xs border-b border-surface-border last:border-b-0 hover:bg-surface-elevated"
+                >
+                  <div className="font-semibold text-white">{a.nome}</div>
+                  <div className="text-[10px] text-zinc-500">
+                    {a.categoria || '—'} · {a.calorias} kcal / {a.quantidade_base}{a.unidade === 'gramas' ? 'g' : ` ${a.unidade}`}
+                  </div>
+                </button>
+              ))}
             </div>
-            <button onClick={() => remover(s.id)} className="text-zinc-500 hover:text-red-400">×</button>
-          </div>
-        ))}
-        {item.substitutos?.length === 0 && (
-          <div className="text-xs text-zinc-600">Nenhum substituto cadastrado.</div>
-        )}
+          )}
+        </div>
+        <Input
+          type="number"
+          placeholder="g"
+          className="w-20 text-xs py-1 text-right tabular-nums"
+          value={qtd}
+          onChange={(e) => setQtd(e.target.value)}
+        />
+        <button
+          onClick={adicionar}
+          disabled={!selected || !qtd}
+          className="text-brand text-xs font-bold uppercase tracking-widest hover:text-brand-dark disabled:text-zinc-700 disabled:cursor-not-allowed shrink-0"
+        >
+          + Adicionar
+        </button>
       </div>
-      <Button size="sm" variant="outline" className="mt-3" onClick={() => setOpenSearch(true)}>
-        + Adicionar substituto
-      </Button>
-      <BuscaAlimentoModal
-        open={openSearch}
-        onClose={() => setOpenSearch(false)}
-        onSelect={adicionar}
-      />
     </div>
   );
 }
@@ -770,6 +868,9 @@ function ModuloTreino({ protocoloId }) {
       <header>
         <div className="text-section-label">Módulo</div>
         <h2 className="text-page-title mt-1">Treino</h2>
+        <p className="text-xs text-zinc-600 mt-1">
+          Para adicionar cardio, escolha o tipo "Cardio" ao adicionar um exercício.
+        </p>
       </header>
 
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
@@ -817,8 +918,12 @@ function ModuloTreino({ protocoloId }) {
 function TreinoEditor({ treino, onChange, onDelete }) {
   const toast = useToast();
   const [openAdd, setOpenAdd] = useState(false);
-  const [draggedId, setDraggedId] = useState(null);
   const [ordered, setOrdered] = useState(treino.exercicios || []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   useEffect(() => setOrdered(treino.exercicios || []), [treino]);
 
@@ -852,24 +957,41 @@ function TreinoEditor({ treino, onChange, onDelete }) {
     } catch (err) { toast.error(errorMessage(err)); }
   }
 
-  function onDragStart(id) { setDraggedId(id); }
-  function onDragOver(e, overId) {
-    e.preventDefault();
-    if (!draggedId || draggedId === overId) return;
-    const arr = [...ordered];
-    const fromIdx = arr.findIndex((i) => i.id === draggedId);
-    const toIdx = arr.findIndex((i) => i.id === overId);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const [moved] = arr.splice(fromIdx, 1);
-    arr.splice(toIdx, 0, moved);
-    setOrdered(arr);
-  }
-  async function onDragEnd() {
-    if (!draggedId) return;
-    setDraggedId(null);
-    const payload = ordered.map((i, idx) => ({ id: i.id, ordem: idx }));
+  async function handleDragEnd(event) {
+    const { active, over } = event;
+    if (!active || !over || active.id === over.id) return;
+
+    const activeItem = ordered.find((i) => i.id === active.id);
+    const overItem = ordered.find((i) => i.id === over.id);
+    if (!activeItem || !overItem) return;
+
+    // Bloco a mover: se item pertence a um superset, move todo o grupo junto.
+    const activeGroup = activeItem.grupo_superset || null;
+    const movingIds = activeGroup
+      ? ordered.filter((i) => i.grupo_superset === activeGroup).map((i) => i.id)
+      : [activeItem.id];
+
+    // Não permite drop dentro do próprio grupo
+    if (movingIds.includes(over.id)) return;
+
+    const moving = ordered.filter((i) => movingIds.includes(i.id));
+    const rest = ordered.filter((i) => !movingIds.includes(i.id));
+
+    // Posição alvo: índice do overItem em `rest`. Se o ativo estava antes do alvo,
+    // o splice já ocupa o lugar correto; caso contrário, inserir antes.
+    let insertAt = rest.findIndex((i) => i.id === over.id);
+    if (insertAt === -1) insertAt = rest.length;
+    const activeIdx = ordered.findIndex((i) => i.id === active.id);
+    const overIdx = ordered.findIndex((i) => i.id === over.id);
+    if (activeIdx < overIdx) insertAt += 1;
+
+    const novos = [...rest.slice(0, insertAt), ...moving, ...rest.slice(insertAt)];
+    setOrdered(novos);
+
     try {
-      await api.patch(`/admin/treinos/${treino.id}/exercicios/reordenar`, { ordem: payload });
+      await api.patch(`/admin/treinos/${treino.id}/exercicios/reordenar`, {
+        ordem: novos.map((i, idx) => ({ id: i.id, ordem: idx })),
+      });
       onChange();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -884,38 +1006,38 @@ function TreinoEditor({ treino, onChange, onDelete }) {
         <Button variant="danger" size="sm" onClick={onDelete}>Remover treino</Button>
       </header>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-section-label border-b border-surface-border">
-            <th className="text-left px-3 py-2 font-semibold w-8"></th>
-            <th className="text-left px-3 py-2 font-semibold">Exercício</th>
-            <th className="text-center px-3 py-2 font-semibold">Séries</th>
-            <th className="text-center px-3 py-2 font-semibold">Reps.</th>
-            <th className="text-center px-3 py-2 font-semibold">Descanso</th>
-            <th className="text-center px-3 py-2 font-semibold">Grupo</th>
-            <th className="text-left px-3 py-2 font-semibold">Observação</th>
-            <th className="text-right px-3 py-2 font-semibold w-12"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {ordered.length === 0 && (
-            <tr><td colSpan={8} className="text-center text-zinc-500 py-8">Nenhum exercício adicionado.</td></tr>
-          )}
-          {grouped.map((g) => (
-            <GroupRows
-              key={g.id}
-              group={g}
-              treinoId={treino.id}
-              onChange={onChange}
-              onRemove={remover}
-              onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDragEnd={onDragEnd}
-              draggedId={draggedId}
-            />
-          ))}
-        </tbody>
-      </table>
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-section-label border-b border-surface-border">
+              <th className="text-left px-2 py-2 font-semibold w-8"></th>
+              <th className="text-left px-3 py-2 font-semibold">Exercício</th>
+              <th className="text-center px-3 py-2 font-semibold">Séries</th>
+              <th className="text-center px-3 py-2 font-semibold">Reps.</th>
+              <th className="text-center px-3 py-2 font-semibold">Descanso</th>
+              <th className="text-center px-3 py-2 font-semibold">Grupo</th>
+              <th className="text-left px-3 py-2 font-semibold">Observação</th>
+              <th className="text-right px-3 py-2 font-semibold w-12"></th>
+            </tr>
+          </thead>
+          <SortableContext items={ordered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <tbody>
+              {ordered.length === 0 && (
+                <tr><td colSpan={8} className="text-center text-zinc-500 py-8">Nenhum exercício adicionado.</td></tr>
+              )}
+              {grouped.map((g) => (
+                <GroupRows
+                  key={g.id}
+                  group={g}
+                  treinoId={treino.id}
+                  onChange={onChange}
+                  onRemove={remover}
+                />
+              ))}
+            </tbody>
+          </SortableContext>
+        </table>
+      </DndContext>
 
       <div className="mt-4">
         <Button onClick={() => setOpenAdd(true)}>+ Adicionar exercício</Button>
@@ -932,7 +1054,7 @@ function TreinoEditor({ treino, onChange, onDelete }) {
   );
 }
 
-function GroupRows({ group, treinoId, onChange, onRemove, onDragStart, onDragOver, onDragEnd, draggedId }) {
+function GroupRows({ group, treinoId, onChange, onRemove }) {
   const isSuper = group.group && group.items.length > 1;
   return (
     <>
@@ -943,10 +1065,6 @@ function GroupRows({ group, treinoId, onChange, onRemove, onDragStart, onDragOve
           treinoId={treinoId}
           onChange={onChange}
           onRemove={() => onRemove(ex.id)}
-          onDragStart={() => onDragStart(ex.id)}
-          onDragOver={(e) => onDragOver(e, ex.id)}
-          onDragEnd={onDragEnd}
-          isDragging={draggedId === ex.id}
           superLabel={isSuper && idx === 0 ? group.group : null}
           inSuper={isSuper}
         />
@@ -955,7 +1073,7 @@ function GroupRows({ group, treinoId, onChange, onRemove, onDragStart, onDragOve
   );
 }
 
-function TreinoItemRow({ item, treinoId, onChange, onRemove, isDragging, superLabel, inSuper, ...dragProps }) {
+function TreinoItemRow({ item, treinoId, onChange, onRemove, superLabel, inSuper }) {
   const toast = useToast();
   const [form, setForm] = useState({
     series: item.series ?? '',
@@ -964,6 +1082,14 @@ function TreinoItemRow({ item, treinoId, onChange, onRemove, isDragging, superLa
     grupo_superset: item.grupo_superset ?? '',
     observacao: item.observacao ?? '',
   });
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   useEffect(() => {
     setForm({
@@ -988,14 +1114,21 @@ function TreinoItemRow({ item, treinoId, onChange, onRemove, isDragging, superLa
 
   return (
     <tr
+      ref={setNodeRef}
+      style={style}
       className={clsx(
-        'border-b border-surface-border text-zinc-300 cursor-move transition-opacity',
-        isDragging && 'opacity-40',
-        inSuper && 'bg-brand/5'
+        'border-b border-surface-border text-zinc-300',
+        inSuper && 'bg-surface-elevated'
       )}
-      {...dragProps}
     >
-      <td className="px-3 py-2 text-center text-zinc-700">⋮⋮</td>
+      <td
+        {...attributes}
+        {...listeners}
+        className="px-2 py-2 w-8 cursor-grab active:cursor-grabbing select-none text-zinc-600 hover:text-zinc-400 text-base leading-none align-middle"
+        title={inSuper ? 'Arrastar superset' : 'Arrastar para reordenar'}
+      >
+        ⠿
+      </td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
           {superLabel && (
@@ -1209,27 +1342,6 @@ function NovoTreinoModal({ open, onClose, protocoloId, proximoOrdem, onCreated }
         <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Treino A, B, …" autoFocus />
       </Field>
     </Modal>
-  );
-}
-
-// ─── Módulo Cardio (placeholder visual) ──────────────────────────────────────
-
-function ModuloCardio() {
-  return (
-    <div className="space-y-4">
-      <header>
-        <div className="text-section-label">Módulo</div>
-        <h2 className="text-page-title mt-1">Cardio</h2>
-      </header>
-      <Card className="p-8 text-center">
-        <div className="text-zinc-400 text-sm">
-          Sessões de cardio são adicionadas dentro do <span className="text-white font-semibold">Módulo Treino</span> escolhendo o tipo "Cardio" ao adicionar um item.
-        </div>
-        <div className="text-zinc-600 text-xs uppercase tracking-widest mt-3">
-          A biblioteca de sessões está em <Link to="/admin/cardio" className="text-brand">Cardio →</Link>
-        </div>
-      </Card>
-    </div>
   );
 }
 

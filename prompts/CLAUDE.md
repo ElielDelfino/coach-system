@@ -58,7 +58,7 @@
 
 ## Contratos & documentação
 
-- `docs/schema.sql` — Schema + migrações M001-M005, M008, M009
+- `docs/schema.sql` — Schema + migrações M001-M005
 - `docs/api-contract.md` — Todas as rotas (body + response)
 - `docs/ui-contract.md` — Shapes JSON do frontend
 - `docker-setup.md` — Comandos Docker completos
@@ -70,7 +70,7 @@
 ## Próximas tarefas / estado atual
 
 _Atualize isso quando iniciar novo chat:_
-- Última coisa que fizemos: [@prompts/prompt_correcoes_v2.md] — 5 correções (fotos invertidas, medidas completas, download PDF, foto alimentos, módulo Cardio removido)
+- Última coisa que fizemos: [descrever]
 - Em progresso: [o que está sendo feito]
 - Bloqueadores: [se houver]
-- Próximo passo: [validar fluxo no Docker + aplicar migrações M008/M009 em prod]
+- Próximo passo: [para onde vamos]

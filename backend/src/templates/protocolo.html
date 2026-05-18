@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>{{TITULO}}</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    color: #1a1a1a;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .brand-bar {
+    background: #f97316;
+    height: 6px;
+    margin-bottom: 18px;
+  }
+
+  .header {
+    border-bottom: 2px solid #1a1a1a;
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+  }
+  .header .row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .header h1 {
+    font-size: 22px;
+    margin: 0;
+    color: #1a1a1a;
+    letter-spacing: -0.3px;
+  }
+  .header .subtitle {
+    font-size: 12px;
+    color: #555;
+    margin-top: 2px;
+  }
+  .header .data-geracao {
+    font-size: 10px;
+    color: #888;
+    text-align: right;
+  }
+  .header .protocolo {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .header .protocolo strong { color: #f97316; }
+
+  .dados-fisicos {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+  .dados-fisicos .cel {
+    display: table-cell;
+    border: 1px solid #e5e5e5;
+    padding: 8px 10px;
+    width: 20%;
+    background: #f9f9f9;
+  }
+  .dados-fisicos .label {
+    font-size: 9px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .dados-fisicos .valor {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-top: 2px;
+  }
+
+  .section {
+    margin-top: 22px;
+    page-break-inside: avoid;
+  }
+  .section-page-break { page-break-before: always; }
+  .section-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffffff;
+    background: #1a1a1a;
+    padding: 8px 12px;
+    border-left: 6px solid #f97316;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 10px;
+  }
+
+  .subsection {
+    margin-top: 14px;
+    page-break-inside: avoid;
+  }
+  .subsection-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid #e5e5e5;
+    padding-bottom: 4px;
+  }
+  .subsection-title .horario {
+    font-size: 10px;
+    color: #f97316;
+    font-weight: 700;
+  }
+
+  table.macro {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 4px;
+  }
+  table.macro th {
+    background: #1a1a1a;
+    color: #ffffff;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 6px 8px;
+    text-align: left;
+    border: 1px solid #1a1a1a;
+  }
+  table.macro th.num, table.macro td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.macro td {
+    padding: 5px 8px;
+    border: 1px solid #e5e5e5;
+    font-size: 10.5px;
+  }
+  table.macro tr:nth-child(odd) td { background: #f9f9f9; }
+  table.macro tr.subst td {
+    background: #fff7ed;
+    color: #555;
+    font-size: 10px;
+    font-style: italic;
+  }
+  table.macro tr.subst td:first-child::before {
+    content: "OU ";
+    font-weight: 800;
+    color: #f97316;
+    font-style: normal;
+  }
+  table.macro tr.total td {
+    background: #1a1a1a !important;
+    color: #fff;
+    font-weight: 700;
+  }
+  table.macro tr.total-protocolo td {
+    background: #f97316 !important;
+    color: #fff;
+    font-weight: 800;
+    font-size: 11.5px;
+  }
+
+  table.treino tr.superset-A td:first-child::before,
+  table.treino tr.superset-B td:first-child::before,
+  table.treino tr.superset-C td:first-child::before,
+  table.treino tr.superset-D td:first-child::before {
+    display: inline-block;
+    width: 22px;
+    color: #f97316;
+    font-weight: 800;
+  }
+  table.treino tr.superset-A td:first-child::before { content: attr(data-tag); }
+
+  .badge-superset {
+    display: inline-block;
+    background: #f97316;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-right: 6px;
+    letter-spacing: 0.5px;
+  }
+  .badge-cardio {
+    display: inline-block;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-right: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  .observacoes-box {
+    background: #f9f9f9;
+    border-left: 4px solid #f97316;
+    padding: 10px 14px;
+    font-size: 11px;
+    white-space: pre-wrap;
+    color: #333;
+  }
+
+  .empty {
+    font-style: italic;
+    color: #999;
+    font-size: 10.5px;
+    padding: 8px 4px;
+  }
+
+  .footer {
+    margin-top: 30px;
+    border-top: 1px solid #e5e5e5;
+    padding-top: 8px;
+    font-size: 9px;
+    color: #999;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="brand-bar"></div>
+
+<div class="header">
+  <div class="row">
+    <div>
+      <h1>{{ALUNO_NOME}}</h1>
+      <div class="subtitle">{{ALUNO_OBJETIVO}}</div>
+    </div>
+    <div class="data-geracao">
+      Gerado em<br>
+      <strong>{{DATA_GERACAO}}</strong>
+    </div>
+  </div>
+  <div class="protocolo">
+    <strong>{{PROTOCOLO_NOME}}</strong> · {{PROTOCOLO_FASE}}
+  </div>
+  <div class="dados-fisicos">
+    <div class="cel"><div class="label">Peso</div><div class="valor">{{FISICO_PESO}}</div></div>
+    <div class="cel"><div class="label">Altura</div><div class="valor">{{FISICO_ALTURA}}</div></div>
+    <div class="cel"><div class="label">%BF</div><div class="valor">{{FISICO_BF}}</div></div>
+    <div class="cel"><div class="label">Peso magro</div><div class="valor">{{FISICO_MAGRO}}</div></div>
+    <div class="cel"><div class="label">Peso gordo</div><div class="valor">{{FISICO_GORDO}}</div></div>
+  </div>
+</div>
+
+{{CONTEUDO}}
+
+<div class="footer">
+  Coach System · Documento gerado automaticamente em {{DATA_GERACAO}}
+</div>
+
+</body>
+</html>

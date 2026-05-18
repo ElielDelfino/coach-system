@@ -72,7 +72,8 @@ export default function Alimentos() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-section-label border-b border-surface-border">
-              <th className="text-left px-5 py-3 font-semibold">Alimento</th>
+              <th className="text-left px-3 py-3 font-semibold w-14"></th>
+              <th className="text-left px-3 py-3 font-semibold">Alimento</th>
               <th className="text-left px-5 py-3 font-semibold">Categoria</th>
               <th className="text-right px-5 py-3 font-semibold">Base</th>
               <th className="text-right px-5 py-3 font-semibold">Kcal</th>
@@ -83,9 +84,9 @@ export default function Alimentos() {
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={8} className="text-center text-zinc-500 py-10">Carregando…</td></tr>}
+            {loading && <tr><td colSpan={9} className="text-center text-zinc-500 py-10">Carregando…</td></tr>}
             {!loading && data.length === 0 && (
-              <tr><td colSpan={8} className="text-center text-zinc-500 py-10">Nenhum alimento encontrado.</td></tr>
+              <tr><td colSpan={9} className="text-center text-zinc-500 py-10">Nenhum alimento encontrado.</td></tr>
             )}
             {data.map((al) => (
               <tr
@@ -93,7 +94,19 @@ export default function Alimentos() {
                 className="border-b border-surface-border text-zinc-300 hover:bg-surface-elevated transition-colors cursor-pointer"
                 onClick={() => setEditing(al.id)}
               >
-                <td className="px-5 py-2.5 font-semibold text-white">{al.nome}</td>
+                <td className="px-3 py-2 w-14">
+                  {al.foto_url ? (
+                    <img
+                      src={al.foto_url}
+                      alt={al.nome}
+                      className="w-10 h-10 rounded-lg object-cover bg-surface-elevated"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-surface-elevated border border-surface-border" />
+                  )}
+                </td>
+                <td className="px-3 py-2.5 font-semibold text-white">{al.nome}</td>
                 <td className="px-5 py-2.5 text-zinc-500">{al.categoria || '—'}</td>
                 <td className="px-5 py-2.5 text-right tabular-nums text-zinc-400">{al.quantidade_base} {al.unidade}</td>
                 <td className="px-5 py-2.5 text-right tabular-nums font-bold text-brand">{al.calorias}</td>
@@ -213,11 +226,26 @@ function AlimentoModal({ open, onClose, alId, onSaved }) {
           <Field label="Gord. *"><Input type="number" step="0.1" value={form.gorduras ?? ''} onChange={(e) => setForm({ ...form, gorduras: e.target.value })} /></Field>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Fibra"><Input type="number" step="0.1" value={form.fibra ?? ''} onChange={(e) => setForm({ ...form, fibra: e.target.value })} /></Field>
           <Field label="Sódio (mg)"><Input type="number" step="0.1" value={form.sodio ?? ''} onChange={(e) => setForm({ ...form, sodio: e.target.value })} /></Field>
-          <Field label="Foto URL"><Input value={form.foto_url ?? ''} onChange={(e) => setForm({ ...form, foto_url: e.target.value })} /></Field>
         </div>
+
+        <Field label="URL da foto">
+          <Input
+            value={form.foto_url ?? ''}
+            onChange={(e) => setForm({ ...form, foto_url: e.target.value })}
+            placeholder="https://…"
+          />
+        </Field>
+        {form.foto_url && (
+          <img
+            src={form.foto_url}
+            alt="preview"
+            className="w-20 h-20 rounded-lg object-cover mt-2 bg-surface-elevated"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+        )}
       </div>
     </Modal>
   );

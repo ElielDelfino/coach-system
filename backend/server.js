@@ -5,6 +5,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
 const migrate = require('./src/config/migrate');
+const seed = require('./src/config/seed');
 const auth = require('./src/middlewares/auth');
 const authorize = require('./src/middlewares/authorize');
 
@@ -35,6 +36,7 @@ app.use((err, req, res, _next) => {
 
 async function start() {
   await migrate();
+  await seed();
   app.listen(PORT, () => console.log(`[server] rodando na porta ${PORT}`));
 }
 

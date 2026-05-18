@@ -14,6 +14,7 @@
 | Autenticação | `/api/auth` |
 | Admin → Alunos | `/api/admin/alunos` |
 | Admin → Pagamentos | `/api/admin/pagamentos` e `/api/admin/alunos/:id/pagamentos` |
+| Admin → Faturas | `/api/admin/faturas/:id` e `/api/admin/alunos/:id/faturas` |
 | Admin → Exercícios | `/api/admin/exercicios` |
 | Admin → Alimentos | `/api/admin/alimentos` |
 | Admin → Cardio | `/api/admin/cardio` |
@@ -125,7 +126,9 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
       "email": "string",
       "telefone": "string",
       "ativo": true,
-      "vencimento_plano": "date | null",
+      "status": "neutro | em_dia | inadimplente | inativo",
+      "dias_tolerancia": 7,
+      "periodicidade_dias": 30,
       "created_at": "timestamp"
     }
   ],
@@ -157,7 +160,9 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
   "sexo": "M | F | outro | null",
   "objetivo": "string?",
   "restricoes": "string?",
-  "lesoes": "string?"
+  "lesoes": "string?",
+  "dias_tolerancia": "int (default 7)",
+  "periodicidade_dias": "int (default 30)"
 }
 ```
 
@@ -168,6 +173,8 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
   "user_id": "uuid",
   "nome": "string",
   "email": "string",
+  "dias_tolerancia": 7,
+  "periodicidade_dias": 30,
   "created_at": "timestamp"
 }
 ```
@@ -199,6 +206,9 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
   "lesoes": "string",
   "observacoes": "string",
   "ativo": true,
+  "status": "neutro | em_dia | inadimplente | inativo",
+  "dias_tolerancia": 7,
+  "periodicidade_dias": 30,
   "created_at": "timestamp",
   "updated_at": "timestamp",
   "ultima_medicao": {
@@ -207,8 +217,7 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
     "percentual_gordura": 18.2,
     "peso_magro_kg": 65.9,
     "peso_gordo_kg": 14.6
-  },
-  "vencimento_plano": "date | null"
+  }
 }
 ```
 
@@ -234,7 +243,9 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
   "objetivo": "string?",
   "restricoes": "string?",
   "lesoes": "string?",
-  "observacoes": "string?"
+  "observacoes": "string?",
+  "dias_tolerancia": "int?",
+  "periodicidade_dias": "int?"
 }
 ```
 
@@ -283,6 +294,31 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
 ```
 
 **Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Aluno não encontrado
+
+---
+
+## PATCH /api/admin/alunos/:id/senha
+
+**Auth:** Bearer token
+**Role:** admin
+
+Redefine a senha do usuário vinculado ao aluno. A senha é re-hasheada com bcrypt (cost 12). Sessões existentes do aluno continuam válidas até o access token expirar — apenas o login com a senha antiga deixa de funcionar.
+
+**Body:**
+```json
+{ "senha": "string (mín. 8 chars)" }
+```
+
+**Response 200:**
+```json
+{ "message": "Senha redefinida com sucesso." }
+```
+
+**Erros:**
+- `400` — Senha ausente ou com menos de 8 caracteres
 - `401` — Não autenticado
 - `403` — Perfil sem permissão
 - `404` — Aluno não encontrado
@@ -542,6 +578,184 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
 - `401` — Não autenticado
 - `403` — Perfil sem permissão
 - `404` — Aluno não encontrado
+
+---
+
+# ADMIN — FATURAS
+
+> Faturas substituem o modelo antigo de pagamentos. O status do aluno (`em_dia`, `inadimplente`, `neutro`, `inativo`) é calculado dinamicamente a partir das faturas e do campo `ativo`/`dias_tolerancia`. A baixa é registrada via `PATCH /faturas/:id/baixa`.
+
+---
+
+## GET /api/admin/alunos/:id/faturas
+
+**Auth:** Bearer token
+**Role:** admin
+
+**Response 200:**
+```json
+[
+  {
+    "id": "uuid",
+    "valor": 150.00,
+    "data_vencimento": "date",
+    "data_baixa": "date | null",
+    "metodo_baixa": "dinheiro | pix | cartao_credito | cartao_debito | transferencia | null",
+    "status": "pendente | pago | vencido",
+    "observacoes": "string | null",
+    "desconto_tipo": "valor | percentual | null",
+    "desconto_valor": "number | null",
+    "valor_final": "number",
+    "created_at": "timestamp"
+  }
+]
+```
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Aluno não encontrado
+
+---
+
+## POST /api/admin/alunos/:id/faturas
+
+**Auth:** Bearer token
+**Role:** admin
+
+**Body:**
+```json
+{
+  "valor": 150.00,
+  "data_vencimento": "date",
+  "observacoes": "string?",
+  "desconto_tipo": "valor | percentual | null",
+  "desconto_valor": "number?"
+}
+```
+
+**Response 201:**
+```json
+{
+  "id": "uuid",
+  "valor": 150.00,
+  "data_vencimento": "date",
+  "status": "pendente",
+  "observacoes": "string | null",
+  "desconto_tipo": "valor | percentual | null",
+  "desconto_valor": "number | null",
+  "valor_final": "number",
+  "created_at": "timestamp"
+}
+```
+
+**Erros:**
+- `400` — Campos obrigatórios ausentes ou valor inválido
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Aluno não encontrado
+
+---
+
+## PUT /api/admin/faturas/:id
+
+**Auth:** Bearer token
+**Role:** admin
+
+Só permite editar faturas com `status='pendente'` ou `status='vencido'`.
+
+**Body (todos opcionais):**
+```json
+{
+  "valor": 150.00,
+  "data_vencimento": "date",
+  "observacoes": "string?",
+  "desconto_tipo": "valor | percentual | null",
+  "desconto_valor": "number | null"
+}
+```
+Para remover desconto: enviar `{ "desconto_tipo": null, "desconto_valor": null }`.
+
+**Response 200:**
+```json
+{
+  "message": "Fatura atualizada.",
+  "fatura": {
+    "id": "uuid",
+    "valor": 150.00,
+    "data_vencimento": "date",
+    "status": "pendente | vencido",
+    "observacoes": "string | null",
+    "desconto_tipo": "valor | percentual | null",
+    "desconto_valor": "number | null",
+    "valor_final": "number"
+  }
+}
+```
+
+**Erros:**
+- `400` — Fatura já baixada (`"Fatura já baixada não pode ser editada."`) ou dados inválidos
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Fatura não encontrada
+
+---
+
+## PATCH /api/admin/faturas/:id/baixa
+
+**Auth:** Bearer token
+**Role:** admin
+
+**Body:**
+```json
+{
+  "data_baixa": "date",
+  "metodo_baixa": "dinheiro | pix | cartao_credito | cartao_debito | transferencia",
+  "observacoes": "string?"
+}
+```
+
+**Response 200:**
+```json
+{
+  "id": "uuid",
+  "valor": 150.00,
+  "data_vencimento": "date",
+  "data_baixa": "date",
+  "metodo_baixa": "string",
+  "status": "pago",
+  "observacoes": "string | null",
+  "desconto_tipo": "valor | percentual | null",
+  "desconto_valor": "number | null",
+  "valor_final": "number"
+}
+```
+
+**Erros:**
+- `400` — Fatura já está paga ou campos obrigatórios ausentes
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Fatura não encontrada
+
+---
+
+## DELETE /api/admin/faturas/:id
+
+**Auth:** Bearer token
+**Role:** admin
+
+Só permite remover faturas com `status='pendente'`.
+
+**Response 200:**
+```json
+{ "message": "Fatura removida." }
+```
+
+**Erros:**
+- `400` — Fatura está paga (não pode ser removida)
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Fatura não encontrada
 
 ---
 
@@ -1051,6 +1265,29 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
 ```
 
 **Erros:** `401`, `403`, `404`
+
+---
+
+## POST /api/admin/protocolos/:id/enviar-pdf
+
+**Auth:** Bearer token
+**Role:** admin
+
+Gera o PDF completo do protocolo (cabeçalho com dados físicos + alimentação + treinos + suplementação + observações, conforme os módulos habilitados) e envia para o email cadastrado do aluno via Resend. O conteúdo é montado a partir do estado atual do protocolo e da última medição registrada do aluno.
+
+**Body:** vazio
+
+**Response 200:**
+```json
+{ "message": "Protocolo enviado para email@aluno.com" }
+```
+
+**Erros:**
+- `400` — Aluno sem email cadastrado
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Protocolo (ou aluno do protocolo) não encontrado
+- `500` — Falha ao gerar PDF (Puppeteer) ou enviar email (Resend); a mensagem descreve a origem
 
 ---
 
@@ -1639,13 +1876,15 @@ Macros são recalculados automaticamente.
   "restricoes": "string",
   "lesoes": "string",
   "ativo": true,
-  "vencimento_plano": "date | null"
+  "status": "neutro | em_dia | inadimplente | inativo",
+  "dias_tolerancia": 7,
+  "periodicidade_dias": 30
 }
 ```
 
 **Erros:**
 - `401` — Não autenticado
-- `403` — Conta desativada
+- `403` — Conta desativada ou inadimplente (`code: "INATIVO" | "INADIMPLENTE"`)
 
 ---
 
@@ -1685,6 +1924,31 @@ Macros são recalculados automaticamente.
     "data_pagamento": "date",
     "metodo": "pix",
     "vencimento": "date"
+  }
+]
+```
+
+**Erros:** `401`, `403`
+
+---
+
+## GET /api/aluno/faturas
+
+**Auth:** Bearer token
+**Role:** aluno
+
+**Response 200:**
+```json
+[
+  {
+    "id": "uuid",
+    "valor": 150.00,
+    "data_vencimento": "date",
+    "status": "pendente | pago | vencido",
+    "data_baixa": "date | null",
+    "desconto_tipo": "valor | percentual | null",
+    "desconto_valor": "number | null",
+    "valor_final": "number"
   }
 ]
 ```
