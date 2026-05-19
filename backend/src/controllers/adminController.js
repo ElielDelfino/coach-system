@@ -1,8 +1,10 @@
 const bcrypt = require('bcryptjs');
 const alunoModel = require('../models/aluno');
+const pool = require('../config/db');
 const redis = require('../config/redis');
 const { gerarPDFProtocolo } = require('../services/pdf');
 const { enviarProtocoloPorEmail } = require('../services/email');
+const { deletarArquivo, extrairVideoIdYoutube } = require('../services/storage');
 
 // ─── alunos ───────────────────────────────────────────────────────────────────
 
@@ -197,8 +199,9 @@ async function listFotos(req, res) {
 async function deleteFoto(req, res) {
   try {
     const { alunoId, fotoId } = req.params;
-    const rows = await alunoModel.deleteFoto(fotoId, alunoId);
-    if (!rows) return res.status(404).json({ message: 'Foto não encontrada.' });
+    const result = await alunoModel.deleteFoto(fotoId, alunoId);
+    if (!result.rowCount) return res.status(404).json({ message: 'Foto não encontrada.' });
+    if (result.s3_key) await deletarArquivo(result.s3_key);
     return res.json({ message: 'Foto removida com sucesso.' });
   } catch (err) {
     console.error('[admin/deleteFoto]', err);
@@ -368,11 +371,17 @@ async function listExercicios(req, res) {
 
 async function createExercicio(req, res) {
   try {
-    const { nome, grupo_muscular } = req.body;
+    const { nome, grupo_muscular, video_youtube_url } = req.body;
     if (!nome || !grupo_muscular) {
       return res.status(400).json({ message: 'nome e grupo_muscular são obrigatórios.' });
     }
-    return res.status(201).json(await alunoModel.createExercicio(req.body));
+    const body = { ...req.body };
+    if (video_youtube_url) {
+      const videoId = extrairVideoIdYoutube(video_youtube_url);
+      if (!videoId) return res.status(400).json({ message: 'URL do YouTube inválida.' });
+      body.video_tipo = 'youtube';
+    }
+    return res.status(201).json(await alunoModel.createExercicio(body));
   } catch (err) {
     console.error('[admin/createExercicio]', err);
     return res.status(500).json({ message: 'Erro interno do servidor.' });
@@ -392,11 +401,91 @@ async function getExercicio(req, res) {
 
 async function updateExercicio(req, res) {
   try {
-    const rows = await alunoModel.updateExercicio(req.params.id, req.body);
+    const body = { ...req.body };
+    if (body.video_youtube_url !== undefined && body.video_youtube_url !== null && body.video_youtube_url !== '') {
+      const videoId = extrairVideoIdYoutube(body.video_youtube_url);
+      if (!videoId) return res.status(400).json({ message: 'URL do YouTube inválida.' });
+      body.video_tipo = 'youtube';
+      // Limpa upload S3 anterior para não exibir duas mídias
+      body.video_url = null;
+    }
+    const rows = await alunoModel.updateExercicio(req.params.id, body);
     if (!rows) return res.status(404).json({ message: 'Exercício não encontrado.' });
     return res.json({ message: 'Exercício atualizado com sucesso.' });
   } catch (err) {
     console.error('[admin/updateExercicio]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+// ─── uploads de mídia ─────────────────────────────────────────────────────────
+
+async function uploadThumbExercicio(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Arquivo thumbnail é obrigatório.' });
+    const result = await alunoModel.trocarExercicioThumbnail(req.params.id, {
+      thumbnail_url: req.file.location,
+      thumbnail_s3_key: req.file.key,
+    });
+    if (!result.found) {
+      await deletarArquivo(req.file.key);
+      return res.status(404).json({ message: 'Exercício não encontrado.' });
+    }
+    if (result.old_key) await deletarArquivo(result.old_key);
+    return res.json({
+      message: 'Thumbnail atualizada.',
+      thumbnail_url: req.file.location,
+      thumbnail_s3_key: req.file.key,
+    });
+  } catch (err) {
+    console.error('[admin/uploadThumbExercicio]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function uploadVideoExercicio(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Arquivo vídeo é obrigatório.' });
+    const result = await alunoModel.trocarExercicioVideo(req.params.id, {
+      video_url: req.file.location,
+      video_s3_key: req.file.key,
+    });
+    if (!result.found) {
+      await deletarArquivo(req.file.key);
+      return res.status(404).json({ message: 'Exercício não encontrado.' });
+    }
+    if (result.old_key) await deletarArquivo(result.old_key);
+    return res.json({
+      message: 'Vídeo atualizado.',
+      video_url: req.file.location,
+      video_s3_key: req.file.key,
+      video_tipo: 's3',
+    });
+  } catch (err) {
+    console.error('[admin/uploadVideoExercicio]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function uploadFotoAlimento(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Arquivo foto é obrigatório.' });
+    const result = await alunoModel.trocarAlimentoFoto(req.params.id, {
+      foto_url: req.file.location,
+      foto_s3_key: req.file.key,
+    });
+    if (!result.found) {
+      await deletarArquivo(req.file.key);
+      return res.status(404).json({ message: 'Alimento não encontrado.' });
+    }
+    if (result.old_key) await deletarArquivo(result.old_key);
+    return res.json({
+      message: 'Foto atualizada.',
+      foto_url: req.file.location,
+      foto_s3_key: req.file.key,
+    });
+  } catch (err) {
+    console.error('[admin/uploadFotoAlimento]', err);
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -965,7 +1054,9 @@ async function baixarProtocoloPdf(req, res) {
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="protocolo-${slugProtocolo(protocolo.nome)}.pdf"`);
-    return res.send(pdfBuffer);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.end(pdfBuffer, 'binary');
   } catch (err) {
     console.error('[admin/baixarProtocoloPdf]', err);
     return res.status(500).json({ message: 'Erro ao gerar o PDF. Tente novamente.' });
@@ -1023,6 +1114,133 @@ async function enviarProtocoloPdf(req, res) {
   }
 }
 
+// ─── dashboard ────────────────────────────────────────────────────────────────
+
+async function dashboardEvolucao(req, res) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         TO_CHAR(DATE(data_medicao), 'YYYY-MM-DD') AS data,
+         ROUND(AVG(peso_kg)::numeric, 1)            AS media_peso_kg,
+         ROUND(AVG(percentual_gordura)::numeric, 1) AS media_percentual_gordura,
+         COUNT(DISTINCT aluno_id)                   AS total_alunos_medidos
+       FROM aluno_medidas
+       WHERE data_medicao >= NOW() - INTERVAL '90 days'
+       GROUP BY DATE(data_medicao)
+       ORDER BY DATE(data_medicao) ASC`
+    );
+    const evolucao = rows.map((r) => ({
+      data: r.data,
+      media_peso_kg: r.media_peso_kg == null ? null : Number(r.media_peso_kg),
+      media_percentual_gordura:
+        r.media_percentual_gordura == null ? null : Number(r.media_percentual_gordura),
+      total_alunos_medidos: Number(r.total_alunos_medidos),
+    }));
+    return res.json({ evolucao });
+  } catch (err) {
+    console.error('[admin/dashboardEvolucao]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function dashboardResumo(req, res) {
+  try {
+    const totaisQ = pool.query(
+      `SELECT
+         COUNT(*)                                        AS total_alunos,
+         COUNT(*) FILTER (WHERE ativo = true)            AS total_ativos_flag,
+         COUNT(*) FILTER (WHERE ativo = false)           AS total_inativos
+       FROM alunos`
+    );
+
+    const statusQ = pool.query(
+      `SELECT
+         COUNT(*) FILTER (
+           WHERE a.ativo = true
+             AND EXISTS (SELECT 1 FROM faturas WHERE aluno_id = a.id)
+             AND NOT EXISTS (
+               SELECT 1 FROM faturas
+               WHERE aluno_id = a.id
+                 AND status = 'pendente'
+                 AND data_vencimento + (a.dias_tolerancia || ' days')::interval < NOW()
+             )
+         ) AS ativos,
+         COUNT(*) FILTER (
+           WHERE a.ativo = true
+             AND EXISTS (
+               SELECT 1 FROM faturas
+               WHERE aluno_id = a.id
+                 AND status = 'pendente'
+                 AND data_vencimento + (a.dias_tolerancia || ' days')::interval < NOW()
+             )
+         ) AS inadimplentes,
+         COUNT(*) FILTER (
+           WHERE a.ativo = true
+             AND NOT EXISTS (SELECT 1 FROM faturas WHERE aluno_id = a.id)
+         ) AS neutros
+       FROM alunos a`
+    );
+
+    const receitaQ = pool.query(
+      `SELECT
+         COALESCE(SUM(
+           CASE
+             WHEN desconto_tipo = 'valor'      THEN GREATEST(0, valor - COALESCE(desconto_valor, 0))
+             WHEN desconto_tipo = 'percentual' THEN GREATEST(0, valor * (1 - COALESCE(desconto_valor, 0) / 100))
+             ELSE valor
+           END
+         ), 0) AS receita_mes
+       FROM faturas
+       WHERE status = 'pago'
+         AND data_baixa >= DATE_TRUNC('month', NOW())
+         AND data_baixa <  DATE_TRUNC('month', NOW()) + INTERVAL '1 month'`
+    );
+
+    const aReceberQ = pool.query(
+      `SELECT
+         COALESCE(SUM(
+           CASE
+             WHEN desconto_tipo = 'valor'      THEN GREATEST(0, valor - COALESCE(desconto_valor, 0))
+             WHEN desconto_tipo = 'percentual' THEN GREATEST(0, valor * (1 - COALESCE(desconto_valor, 0) / 100))
+             ELSE valor
+           END
+         ), 0) AS a_receber_mes
+       FROM faturas
+       WHERE status = 'pendente'
+         AND data_vencimento >= DATE_TRUNC('month', NOW())
+         AND data_vencimento <  DATE_TRUNC('month', NOW()) + INTERVAL '1 month'`
+    );
+
+    const semMedicaoQ = pool.query(
+      `SELECT COUNT(*) AS sem_medicao_30d
+       FROM alunos a
+       WHERE a.ativo = true
+         AND NOT EXISTS (
+           SELECT 1 FROM aluno_medidas m
+           WHERE m.aluno_id = a.id
+             AND m.data_medicao >= NOW() - INTERVAL '30 days'
+         )`
+    );
+
+    const [totais, statusR, receita, aReceber, semMedicao] = await Promise.all([
+      totaisQ, statusQ, receitaQ, aReceberQ, semMedicaoQ,
+    ]);
+
+    return res.json({
+      total_alunos:           Number(totais.rows[0].total_alunos),
+      ativos:                 Number(statusR.rows[0].ativos),
+      inadimplentes:          Number(statusR.rows[0].inadimplentes),
+      neutros:                Number(statusR.rows[0].neutros),
+      receita_mes:            Number(receita.rows[0].receita_mes),
+      a_receber_mes:          Number(aReceber.rows[0].a_receber_mes),
+      alunos_sem_medicao_30d: Number(semMedicao.rows[0].sem_medicao_30d),
+    });
+  } catch (err) {
+    console.error('[admin/dashboardResumo]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 module.exports = {
   listAlunos, createAluno, getAluno, updateAluno, ativarAluno, desativarAluno,
   redefinirSenhaAluno,
@@ -1031,7 +1249,9 @@ module.exports = {
   listPagamentos, listPagamentosAluno, createPagamento,
   listFaturasAluno, createFatura, updateFatura, darBaixaFatura, deleteFatura,
   listExercicios, createExercicio, getExercicio, updateExercicio, ativarExercicio, desativarExercicio,
+  uploadThumbExercicio, uploadVideoExercicio,
   listAlimentos, createAlimento, getAlimento, updateAlimento, ativarAlimento, desativarAlimento,
+  uploadFotoAlimento,
   listCardio, createCardio, getCardio, updateCardio, desativarCardio,
   listProtocolos, createProtocolo, getProtocolo, updateProtocolo, ativarProtocolo, desativarProtocolo,
   listRefeicoes, createRefeicao, duplicarRefeicao, updateRefeicao, deleteRefeicao,
@@ -1041,4 +1261,5 @@ module.exports = {
   createTreinoExercicio, updateTreinoExercicio, deleteTreinoExercicio, reordenarTreinoExercicios,
   listSuplementacao, createSuplemento, updateSuplemento, deleteSuplemento,
   enviarProtocoloPdf, baixarProtocoloPdf,
+  dashboardEvolucao, dashboardResumo,
 };

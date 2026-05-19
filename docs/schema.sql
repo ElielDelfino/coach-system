@@ -437,3 +437,32 @@ CREATE INDEX IF NOT EXISTS idx_faturas_data_vencimento ON faturas (data_vencimen
 ALTER TABLE faturas
   ADD COLUMN IF NOT EXISTS desconto_tipo  TEXT CHECK (desconto_tipo IN ('valor','percentual')),
   ADD COLUMN IF NOT EXISTS desconto_valor NUMERIC(10,2) CHECK (desconto_valor >= 0);
+
+-- M006: rastreio de upload de fotos do aluno (S3)
+ALTER TABLE aluno_fotos
+  ADD COLUMN IF NOT EXISTS s3_key TEXT;
+
+-- M007: keys do S3 em exercicios e alimentos
+ALTER TABLE exercicios
+  ADD COLUMN IF NOT EXISTS thumbnail_s3_key TEXT,
+  ADD COLUMN IF NOT EXISTS video_s3_key     TEXT;
+ALTER TABLE alimentos
+  ADD COLUMN IF NOT EXISTS foto_s3_key TEXT;
+
+-- M008: rastreio de quem enviou a foto (já aplicada em migrate.js)
+ALTER TABLE aluno_fotos
+  ADD COLUMN IF NOT EXISTS enviada_por UUID REFERENCES users(id);
+
+-- M009: colunas faltantes em aluno_medidas (já aplicada em migrate.js)
+ALTER TABLE aluno_medidas
+  ADD COLUMN IF NOT EXISTS abdomen_cm          NUMERIC(5,1),
+  ADD COLUMN IF NOT EXISTS antebraco_dir_cm    NUMERIC(5,1),
+  ADD COLUMN IF NOT EXISTS antebraco_esq_cm    NUMERIC(5,1),
+  ADD COLUMN IF NOT EXISTS panturrilha_dir_cm  NUMERIC(5,1),
+  ADD COLUMN IF NOT EXISTS panturrilha_esq_cm  NUMERIC(5,1);
+
+-- M010: suporte a vídeos do YouTube em exercicios
+ALTER TABLE exercicios
+  ADD COLUMN IF NOT EXISTS video_youtube_url TEXT,
+  ADD COLUMN IF NOT EXISTS video_tipo TEXT
+    CHECK (video_tipo IN ('s3', 'youtube'));

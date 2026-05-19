@@ -31,6 +31,40 @@ Limpa cookie do servidor. Front-end deve descartar o `accessToken` da memória.
 
 ---
 
+## ADMIN — DASHBOARD
+
+### GET /api/admin/dashboard/evolucao
+Evolução agregada da base nos últimos 90 dias (médias por dia).
+```json
+{
+  "evolucao": [
+    { "data": "2026-01-15", "media_peso_kg": 82.3, "media_percentual_gordura": 18.5, "total_alunos_medidos": 12 }
+  ]
+}
+```
+- `data` formato `YYYY-MM-DD`, ordem cronológica ascendente.
+- Valores numéricos com 1 casa decimal; podem vir `null`.
+- Front exibe um `LineChart` (peso médio) e um `AreaChart` (%BF médio) — eixo X formatado como `DD/MM`.
+
+### GET /api/admin/dashboard/resumo
+```json
+{
+  "total_alunos": 48,
+  "ativos": 35,
+  "inadimplentes": 7,
+  "neutros": 6,
+  "receita_mes": 4200.00,
+  "a_receber_mes": 1800.00,
+  "alunos_sem_medicao_30d": 15
+}
+```
+- `ativos | inadimplentes | neutros` cobrem apenas alunos com `ativo = true`.
+- `receita_mes` = soma do valor final das faturas pagas no mês corrente.
+- `a_receber_mes` = soma do valor final das faturas pendentes com `data_vencimento` no mês.
+- `alunos_sem_medicao_30d` alimenta o card de alerta amarelo no dashboard.
+
+---
+
 ## ADMIN — ALUNOS
 
 ### GET /api/admin/alunos
@@ -273,6 +307,31 @@ Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`
 
 ### GET /api/aluno/medidas
 Mesmo formato de `GET /api/admin/alunos/:id/medidas`.
+
+### GET /api/aluno/evolucao
+Série cronológica de medições do aluno autenticado, usada nos gráficos da aba “Minhas Medidas”.
+```json
+{
+  "evolucao": [
+    {
+      "data": "2026-01-15",
+      "peso_kg": 85.0,
+      "percentual_gordura": 22.0,
+      "peso_magro_kg": 66.3,
+      "peso_gordo_kg": 18.7,
+      "cintura_cm": 88.0,
+      "quadril_cm": 102.0,
+      "braco_dir_cm": 34.0,
+      "braco_esq_cm": 33.5,
+      "coxa_dir_cm": 58.0,
+      "coxa_esq_cm": 57.5
+    }
+  ]
+}
+```
+- `data` em `YYYY-MM-DD`, ordenação ascendente.
+- Campos numéricos podem vir `null`.
+- Front usa três visões alternáveis: Peso (ComposedChart com peso total, magro e gordo), %BF (AreaChart com `ReferenceLine` no valor inicial) e Medidas (LineChart com cintura/quadril/braço/coxa).
 
 ### GET /api/aluno/fotos
 Mesmo formato de `GET /api/admin/alunos/:id/fotos`.

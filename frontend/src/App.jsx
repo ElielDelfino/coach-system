@@ -17,7 +17,7 @@ import MeuProtocolo from './pages/aluno/MeuProtocolo';
 
 function AdminShell() {
   return (
-    <div className="flex min-h-screen bg-surface">
+    <div className="md:flex min-h-screen bg-surface">
       <Navbar />
       <main className="flex-1 min-w-0">
         <Routes>

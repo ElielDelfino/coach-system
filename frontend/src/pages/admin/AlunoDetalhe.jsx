@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import api from '../../services/api';
 import { useToast, errorMessage } from '../../components/ui/Toast';
@@ -9,6 +9,9 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { Field } from './Alunos';
+import PageLoader from '../../components/ui/PageLoader';
+import EmptyState from '../../components/ui/EmptyState';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 
 const TABS = [
   { id: 'perfil', label: 'Perfil' },
@@ -33,10 +36,12 @@ function formatCurrency(v) {
 
 export default function AlunoDetalhe() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const toast = useToast();
   const [aluno, setAluno] = useState(null);
   const [tab, setTab] = useState('perfil');
   const [loading, setLoading] = useState(true);
+  const [naoEncontrado, setNaoEncontrado] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,7 +49,11 @@ export default function AlunoDetalhe() {
       const res = await api.get(`/admin/alunos/${id}`);
       setAluno(res.data);
     } catch (err) {
-      toast.error(errorMessage(err));
+      if (err?.response?.status === 404) {
+        setNaoEncontrado(true);
+      } else {
+        toast.error(errorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -63,32 +72,46 @@ export default function AlunoDetalhe() {
     }
   }
 
-  if (loading || !aluno) {
-    return <div className="p-8 text-section-label animate-pulse">Carregando…</div>;
+  if (loading) {
+    return <PageLoader mensagem="Carregando perfil do aluno..." />;
+  }
+
+  if (naoEncontrado || !aluno) {
+    return (
+      <div className="p-4 md:p-8 max-w-7xl">
+        <EmptyState
+          icone="❌"
+          titulo="Aluno não encontrado"
+          acao={<Button onClick={() => navigate('/admin/alunos')}>Voltar</Button>}
+        />
+      </div>
+    );
   }
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6 max-w-7xl">
       <div>
         <Link to="/admin/alunos" className="text-xs uppercase tracking-widest text-zinc-500 hover:text-brand">
           ← Voltar
         </Link>
       </div>
 
-      <header className="flex items-start gap-5">
-        <div className="w-16 h-16 rounded-full bg-brand flex items-center justify-center text-xl font-black text-white">
-          {iniciais(aluno.nome)}
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-page-title">{aluno.nome}</h1>
-            <StatusBadge status={aluno.status} />
+      <header className="flex flex-col md:flex-row md:items-start gap-4 md:gap-5">
+        <div className="flex items-start gap-4 flex-1 min-w-0">
+          <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-brand flex items-center justify-center text-lg md:text-xl font-black text-white shrink-0">
+            {iniciais(aluno.nome)}
           </div>
-          <div className="text-zinc-400 text-sm mt-0.5">{aluno.email}</div>
-          <div className="text-xs text-zinc-500 mt-1 uppercase tracking-widest">
-            Tolerância: <span className="text-zinc-300 tabular-nums normal-case tracking-normal">{aluno.dias_tolerancia ?? 7} dias</span>
-            <span className="mx-2 text-zinc-700">·</span>
-            Plano: <span className="text-zinc-300 tabular-nums normal-case tracking-normal">{aluno.periodicidade_dias ?? 30} dias</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-page-title truncate">{aluno.nome}</h1>
+              <StatusBadge status={aluno.status} />
+            </div>
+            <div className="text-zinc-400 text-sm mt-0.5 truncate">{aluno.email}</div>
+            <div className="text-xs text-zinc-500 mt-1 uppercase tracking-widest">
+              Tolerância: <span className="text-zinc-300 tabular-nums normal-case tracking-normal">{aluno.dias_tolerancia ?? 7} dias</span>
+              <span className="mx-2 text-zinc-700">·</span>
+              Plano: <span className="text-zinc-300 tabular-nums normal-case tracking-normal">{aluno.periodicidade_dias ?? 30} dias</span>
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -98,13 +121,13 @@ export default function AlunoDetalhe() {
         </div>
       </header>
 
-      <nav className="flex border-b border-surface-border">
+      <nav className="flex border-b border-surface-border overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={clsx(
-              'px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px',
+              'px-4 md:px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px whitespace-nowrap shrink-0',
               tab === t.id
                 ? 'text-white border-b-2 border-brand'
                 : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-transparent'
@@ -177,7 +200,7 @@ function TabPerfil({ aluno, onReload }) {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {editing ? (
             <>
               <Field label="Nome"><Input value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></Field>
@@ -395,6 +418,8 @@ function TabMedidas({ alunoId }) {
   const [openCreate, setOpenCreate] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [expandidaId, setExpandidaId] = useState(null);
+  const [confirmDel, setConfirmDel] = useState({ aberto: false, medicao: null });
+  const [deletando, setDeletando] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -410,19 +435,28 @@ function TabMedidas({ alunoId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function remover(m) {
-    if (!confirm(`Excluir medição de ${formatDate(m.data_medicao)}?`)) return;
+  function pedirRemover(m) {
+    setConfirmDel({ aberto: true, medicao: m });
+  }
+
+  async function confirmarRemover() {
+    const m = confirmDel.medicao;
+    if (!m) return;
+    setDeletando(true);
     try {
       await api.delete(`/admin/alunos/${alunoId}/medidas/${m.id}`);
       toast.success('Medição removida.');
+      setConfirmDel({ aberto: false, medicao: null });
       load();
     } catch (err) {
       toast.error(errorMessage(err));
+    } finally {
+      setDeletando(false);
     }
   }
 
   if (loading) {
-    return <div className="text-section-label animate-pulse py-8">Carregando medidas…</div>;
+    return <PageLoader mensagem="Carregando medidas..." />;
   }
 
   const ordenadas = [...data].sort(
@@ -437,10 +471,11 @@ function TabMedidas({ alunoId }) {
       </div>
 
       {!ultima && (
-        <Card className="p-10 text-center">
-          <div className="text-section-label mb-1">Sem dados</div>
-          <div className="text-zinc-400">Nenhuma medição registrada ainda.</div>
-        </Card>
+        <EmptyState
+          icone="📏"
+          titulo="Nenhuma medição registrada"
+          descricao="Registre a primeira medição do aluno."
+        />
       )}
 
       {ultima && (
@@ -459,33 +494,35 @@ function TabMedidas({ alunoId }) {
         <section className="space-y-3">
           <div className="text-section-label">Histórico</div>
           <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-section-label border-b border-surface-border">
-                  <th className="text-left px-4 py-3 font-semibold">Data</th>
-                  <th className="text-right px-3 py-3 font-semibold">Peso</th>
-                  <th className="text-right px-3 py-3 font-semibold">%BF</th>
-                  <th className="text-right px-3 py-3 font-semibold">P.Magro</th>
-                  <th className="text-right px-3 py-3 font-semibold">Cintura</th>
-                  <th className="text-right px-4 py-3 font-semibold">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordenadas.map((m) => {
-                  const expandida = expandidaId === m.id;
-                  return (
-                    <FragmentLinha
-                      key={m.id}
-                      medida={m}
-                      expandida={expandida}
-                      onToggle={() => setExpandidaId(expandida ? null : m.id)}
-                      onEdit={() => setEditTarget(m)}
-                      onDelete={() => remover(m)}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead>
+                  <tr className="text-section-label border-b border-surface-border">
+                    <th className="text-left px-4 py-3 font-semibold">Data</th>
+                    <th className="text-right px-3 py-3 font-semibold">Peso</th>
+                    <th className="text-right px-3 py-3 font-semibold">%BF</th>
+                    <th className="text-right px-3 py-3 font-semibold">P.Magro</th>
+                    <th className="text-right px-3 py-3 font-semibold">Cintura</th>
+                    <th className="text-right px-4 py-3 font-semibold">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordenadas.map((m) => {
+                    const expandida = expandidaId === m.id;
+                    return (
+                      <FragmentLinha
+                        key={m.id}
+                        medida={m}
+                        expandida={expandida}
+                        onToggle={() => setExpandidaId(expandida ? null : m.id)}
+                        onEdit={() => setEditTarget(m)}
+                        onDelete={() => pedirRemover(m)}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </Card>
         </section>
       )}
@@ -503,6 +540,17 @@ function TabMedidas({ alunoId }) {
         onClose={() => setEditTarget(null)}
         alunoId={alunoId}
         onCreated={() => { setEditTarget(null); load(); }}
+      />
+
+      <ConfirmModal
+        aberto={confirmDel.aberto}
+        titulo="Excluir medição?"
+        descricao={confirmDel.medicao ? `Medição de ${formatDate(confirmDel.medicao.data_medicao)}. Esta ação não pode ser desfeita.` : 'Esta ação não pode ser desfeita.'}
+        textoBotao="Excluir medição"
+        variante="danger"
+        carregando={deletando}
+        onConfirmar={confirmarRemover}
+        onCancelar={() => setConfirmDel({ aberto: false, medicao: null })}
       />
     </div>
   );
@@ -778,6 +826,8 @@ function TabFotos({ alunoId }) {
   const toast = useToast();
   const [blocos, setBlocos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDel, setConfirmDel] = useState({ aberto: false, fotoId: null });
+  const [deletando, setDeletando] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -793,27 +843,37 @@ function TabFotos({ alunoId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function remover(fotoId) {
-    if (!confirm('Tem certeza que deseja excluir esta foto?')) return;
+  function pedirRemover(fotoId) {
+    setConfirmDel({ aberto: true, fotoId });
+  }
+
+  async function confirmarRemover() {
+    const fotoId = confirmDel.fotoId;
+    if (!fotoId) return;
+    setDeletando(true);
     try {
       await api.delete(`/admin/alunos/${alunoId}/fotos/${fotoId}`);
       toast.success('Foto removida.');
+      setConfirmDel({ aberto: false, fotoId: null });
       load();
     } catch (err) {
       toast.error(errorMessage(err));
+    } finally {
+      setDeletando(false);
     }
   }
 
   if (loading) {
-    return <div className="text-section-label animate-pulse py-8">Carregando fotos…</div>;
+    return <PageLoader mensagem="Carregando fotos..." />;
   }
 
   if (blocos.length === 0) {
     return (
-      <Card className="p-10 text-center">
-        <div className="text-section-label mb-1">Sem fotos</div>
-        <div className="text-zinc-400">O aluno ainda não enviou fotos.</div>
-      </Card>
+      <EmptyState
+        icone="📷"
+        titulo="Nenhuma foto enviada"
+        descricao="O aluno ainda não enviou fotos de progresso."
+      />
     );
   }
 
@@ -832,7 +892,7 @@ function TabFotos({ alunoId }) {
                     <div className="relative aspect-[3/4] w-full overflow-hidden rounded-md bg-black border border-surface-border group">
                       <img src={foto.url} alt={pos.label} className="w-full h-full object-cover" loading="lazy" />
                       <button
-                        onClick={() => remover(foto.id)}
+                        onClick={() => pedirRemover(foto.id)}
                         title="Excluir foto"
                         className="absolute top-1.5 right-1.5 w-8 h-8 rounded-md bg-black/70 border border-red-900 text-red-400 hover:bg-red-950 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       >
@@ -850,6 +910,17 @@ function TabFotos({ alunoId }) {
           </div>
         </Card>
       ))}
+
+      <ConfirmModal
+        aberto={confirmDel.aberto}
+        titulo="Excluir foto?"
+        descricao="Esta ação não pode ser desfeita."
+        textoBotao="Excluir foto"
+        variante="danger"
+        carregando={deletando}
+        onConfirmar={confirmarRemover}
+        onCancelar={() => setConfirmDel({ aberto: false, fotoId: null })}
+      />
     </div>
   );
 }
@@ -894,6 +965,8 @@ function TabFaturas({ alunoId, alunoTolerancia, onReload }) {
   const [openCreate, setOpenCreate] = useState(false);
   const [baixaTarget, setBaixaTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [confirmDel, setConfirmDel] = useState({ aberto: false, fatura: null });
+  const [deletando, setDeletando] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -906,15 +979,24 @@ function TabFaturas({ alunoId, alunoTolerancia, onReload }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function remover(fatura) {
-    if (!confirm('Remover esta fatura pendente?')) return;
+  function pedirRemover(fatura) {
+    setConfirmDel({ aberto: true, fatura });
+  }
+
+  async function confirmarRemover() {
+    const fatura = confirmDel.fatura;
+    if (!fatura) return;
+    setDeletando(true);
     try {
       await api.delete(`/admin/faturas/${fatura.id}`);
       toast.success('Fatura removida.');
+      setConfirmDel({ aberto: false, fatura: null });
       load();
       onReload();
     } catch (err) {
       toast.error(errorMessage(err));
+    } finally {
+      setDeletando(false);
     }
   }
 
@@ -945,72 +1027,138 @@ function TabFaturas({ alunoId, alunoTolerancia, onReload }) {
         <Button onClick={() => setOpenCreate(true)}>+ Lançar fatura</Button>
       </div>
 
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-section-label border-b border-surface-border">
-              <th className="text-left px-5 py-3 font-semibold">Vencimento</th>
-              <th className="text-right px-5 py-3 font-semibold">Valor</th>
-              <th className="text-left px-5 py-3 font-semibold">Status</th>
-              <th className="text-left px-5 py-3 font-semibold">Data baixa</th>
-              <th className="text-left px-5 py-3 font-semibold">Método</th>
-              <th className="text-right px-5 py-3 font-semibold">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.length === 0 && (
-              <tr><td colSpan={6} className="text-center text-zinc-500 py-8">Nenhuma fatura registrada.</td></tr>
-            )}
-            {data.map((f) => (
-              <tr key={f.id} className="border-b border-surface-border text-zinc-300">
-                <td className="px-5 py-2.5 text-white tabular-nums">{formatDate(f.data_vencimento)}</td>
-                <td className="px-5 py-2.5 text-right tabular-nums">
-                  {f.desconto_tipo ? (
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="line-through text-zinc-500 text-xs">{formatCurrency(f.valor)}</span>
-                      <span className="font-bold text-brand">{formatCurrency(f.valor_final)}</span>
-                      <span className="text-[10px] text-zinc-600 uppercase tracking-widest">
-                        {f.desconto_tipo === 'valor' ? `-${formatCurrency(f.desconto_valor)}` : `-${f.desconto_valor}%`}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="font-bold text-brand">{formatCurrency(f.valor_final ?? f.valor)}</span>
-                  )}
-                </td>
-                <td className="px-5 py-2.5"><FaturaStatusBadge status={f.status} /></td>
-                <td className="px-5 py-2.5 tabular-nums">{formatDate(f.data_baixa)}</td>
-                <td className="px-5 py-2.5 uppercase text-xs tracking-widest">{f.metodo_baixa || '—'}</td>
-                <td className="px-5 py-2.5 text-right space-x-2">
-                  {(f.status === 'pendente' || f.status === 'vencido') && (
-                    <>
-                      <button
-                        onClick={() => setEditTarget(f)}
-                        className="text-xs uppercase tracking-widest font-bold text-zinc-400 hover:text-zinc-200"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => setBaixaTarget(f)}
-                        className="text-xs uppercase tracking-widest font-bold text-green-400 hover:text-green-300"
-                      >
-                        Dar baixa
-                      </button>
-                    </>
-                  )}
+      {data.length === 0 ? (
+        <EmptyState
+          icone="💰"
+          titulo="Nenhuma fatura lançada"
+          descricao="Lance a primeira fatura para este aluno."
+        />
+      ) : (
+      <>
+        {/* Desktop: tabela */}
+        <Card className="hidden md:block overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-section-label border-b border-surface-border">
+                  <th className="text-left px-5 py-3 font-semibold">Vencimento</th>
+                  <th className="text-right px-5 py-3 font-semibold">Valor</th>
+                  <th className="text-left px-5 py-3 font-semibold">Status</th>
+                  <th className="text-left px-5 py-3 font-semibold">Data baixa</th>
+                  <th className="text-left px-5 py-3 font-semibold">Método</th>
+                  <th className="text-right px-5 py-3 font-semibold">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((f) => (
+                  <tr key={f.id} className="border-b border-surface-border text-zinc-300">
+                    <td className="px-5 py-2.5 text-white tabular-nums">{formatDate(f.data_vencimento)}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums">
+                      {f.desconto_tipo ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="line-through text-zinc-500 text-xs">{formatCurrency(f.valor)}</span>
+                          <span className="font-bold text-brand">{formatCurrency(f.valor_final)}</span>
+                          <span className="text-[10px] text-zinc-600 uppercase tracking-widest">
+                            {f.desconto_tipo === 'valor' ? `-${formatCurrency(f.desconto_valor)}` : `-${f.desconto_valor}%`}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-brand">{formatCurrency(f.valor_final ?? f.valor)}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-2.5"><FaturaStatusBadge status={f.status} /></td>
+                    <td className="px-5 py-2.5 tabular-nums">{formatDate(f.data_baixa)}</td>
+                    <td className="px-5 py-2.5 uppercase text-xs tracking-widest">{f.metodo_baixa || '—'}</td>
+                    <td className="px-5 py-2.5 text-right space-x-2">
+                      {(f.status === 'pendente' || f.status === 'vencido') && (
+                        <>
+                          <button
+                            onClick={() => setEditTarget(f)}
+                            className="text-xs uppercase tracking-widest font-bold text-zinc-400 hover:text-zinc-200"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => setBaixaTarget(f)}
+                            className="text-xs uppercase tracking-widest font-bold text-green-400 hover:text-green-300"
+                          >
+                            Dar baixa
+                          </button>
+                        </>
+                      )}
+                      {f.status === 'pendente' && (
+                        <button
+                          onClick={() => pedirRemover(f)}
+                          className="text-xs uppercase tracking-widest font-bold text-red-400 hover:text-red-300"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* Mobile: cards */}
+        <div className="md:hidden space-y-3">
+          {data.map((f) => (
+            <div key={f.id} className="bg-surface-card border border-surface-border rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-zinc-600 text-[10px] uppercase tracking-widest">Vencimento</p>
+                  <p className="text-white font-bold tabular-nums">{formatDate(f.data_vencimento)}</p>
+                </div>
+                <FaturaStatusBadge status={f.status} />
+              </div>
+              <div className="flex items-baseline justify-between mb-3">
+                <p className="text-zinc-600 text-[10px] uppercase tracking-widest">Valor</p>
+                {f.desconto_tipo ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="line-through text-zinc-500 text-xs">{formatCurrency(f.valor)}</span>
+                    <span className="font-black text-brand text-lg tabular-nums">{formatCurrency(f.valor_final)}</span>
+                  </div>
+                ) : (
+                  <span className="font-black text-brand text-lg tabular-nums">{formatCurrency(f.valor_final ?? f.valor)}</span>
+                )}
+              </div>
+              {f.data_baixa && (
+                <div className="text-xs text-zinc-500 mb-3">
+                  Baixa em <span className="text-zinc-300 tabular-nums">{formatDate(f.data_baixa)}</span>
+                  {f.metodo_baixa && <span className="text-zinc-300 uppercase tracking-widest ml-2">· {f.metodo_baixa}</span>}
+                </div>
+              )}
+              {(f.status === 'pendente' || f.status === 'vencido') && (
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => setEditTarget(f)}
+                    className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-zinc-300 border border-surface-border rounded-md py-2 hover:bg-surface-elevated"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => setBaixaTarget(f)}
+                    className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-green-300 border border-green-900 bg-green-950/40 rounded-md py-2 hover:bg-green-950"
+                  >
+                    Dar baixa
+                  </button>
                   {f.status === 'pendente' && (
                     <button
-                      onClick={() => remover(f)}
-                      className="text-xs uppercase tracking-widest font-bold text-red-400 hover:text-red-300"
+                      onClick={() => pedirRemover(f)}
+                      className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-red-300 border border-red-900 bg-red-950/40 rounded-md py-2 hover:bg-red-950"
                     >
                       Remover
                     </button>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </>
+      )}
 
       <FaturaModal
         open={openCreate}
@@ -1029,6 +1177,17 @@ function TabFaturas({ alunoId, alunoTolerancia, onReload }) {
         fatura={baixaTarget}
         onClose={() => setBaixaTarget(null)}
         onConfirmed={() => { setBaixaTarget(null); load(); onReload(); }}
+      />
+
+      <ConfirmModal
+        aberto={confirmDel.aberto}
+        titulo="Excluir fatura?"
+        descricao="Esta ação não pode ser desfeita."
+        textoBotao="Excluir fatura"
+        variante="danger"
+        carregando={deletando}
+        onConfirmar={confirmarRemover}
+        onCancelar={() => setConfirmDel({ aberto: false, fatura: null })}
       />
     </div>
   );
@@ -1329,16 +1488,19 @@ function TabProtocolos({ alunoId }) {
       <div className="flex justify-end">
         <Button onClick={() => setOpenCreate(true)}>+ Novo protocolo</Button>
       </div>
+      {data.length === 0 ? (
+        <EmptyState
+          icone="📋"
+          titulo="Nenhum protocolo criado"
+          descricao="Crie o primeiro protocolo para este aluno."
+        />
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {data.length === 0 && (
-          <Card className="md:col-span-2 p-10 text-center text-zinc-500 text-sm">
-            Nenhum protocolo cadastrado.
-          </Card>
-        )}
         {data.map((p) => (
           <ProtocoloCard key={p.id} protocolo={p} alunoId={alunoId} />
         ))}
       </div>
+      )}
 
       <ProtocoloModal
         open={openCreate}

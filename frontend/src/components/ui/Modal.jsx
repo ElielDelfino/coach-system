@@ -15,27 +15,32 @@ export default function Modal({ open, onClose, title, children, footer, size = '
   if (!open) return null;
 
   const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-xl',
-    lg: 'max-w-3xl',
-    xl: 'max-w-5xl',
+    sm: 'md:max-w-md',
+    md: 'md:max-w-xl',
+    lg: 'md:max-w-3xl',
+    xl: 'md:max-w-5xl',
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4 bg-black/70 md:backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className={`w-full ${sizes[size]} bg-surface-card border border-surface-border rounded-lg shadow-2xl max-h-[90vh] flex flex-col`}
+        className={`relative w-full bg-surface-card border-t md:border border-surface-border rounded-t-2xl md:rounded-lg shadow-2xl max-h-[92vh] md:max-h-[90vh] flex flex-col ${sizes[size]}`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Handle bar (mobile) */}
+        <div className="flex justify-center pt-3 pb-1 md:hidden">
+          <div className="w-10 h-1 bg-zinc-700 rounded-full" />
+        </div>
+
         {title && (
           <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
             <h2 className="text-page-title text-base">{title}</h2>
             <button
               onClick={onClose}
-              className="text-zinc-500 hover:text-white text-2xl leading-none"
+              className="text-zinc-500 hover:text-white text-2xl leading-none min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center"
               aria-label="Fechar"
             >
               ×
@@ -44,7 +49,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         )}
         <div className="px-5 py-4 overflow-y-auto flex-1">{children}</div>
         {footer && (
-          <div className="px-5 py-3 border-t border-surface-border flex items-center justify-end gap-2">
+          <div className="px-5 py-3 border-t border-surface-border flex items-center justify-end gap-2 flex-wrap">
             {footer}
           </div>
         )}

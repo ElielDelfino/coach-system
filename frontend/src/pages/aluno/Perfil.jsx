@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, AreaChart, Area, ComposedChart,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -9,8 +10,10 @@ import { useToast, errorMessage } from '../../components/ui/Toast';
 import { Card } from '../../components/ui/Card';
 import StatusBadge from '../../components/StatusBadge';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import ImageUpload from '../../components/ImageUpload';
+import PageLoader from '../../components/ui/PageLoader';
+import EmptyState from '../../components/ui/EmptyState';
 
 const TABS = [
   { id: 'perfil',   label: 'Meu Perfil' },
@@ -44,6 +47,7 @@ export default function Perfil() {
   const [protocolos, setProtocolos] = useState([]);
   const [faturas, setFaturas] = useState([]);
   const [medidas, setMedidas] = useState(null);
+  const [evolucao, setEvolucao] = useState(null);
   const [fotos, setFotos] = useState(null);
 
   const [loadingBase, setLoadingBase] = useState(true);
@@ -80,8 +84,14 @@ export default function Perfil() {
   useEffect(() => {
     if (activeTab !== 'medidas' || medidas !== null) return;
     setLoadingMedidas(true);
-    api.get('/aluno/medidas')
-      .then((r) => setMedidas(r.data))
+    Promise.all([
+      api.get('/aluno/medidas'),
+      api.get('/aluno/evolucao'),
+    ])
+      .then(([rm, re]) => {
+        setMedidas(rm.data);
+        setEvolucao(re.data?.evolucao || []);
+      })
       .catch((err) => toast.error(errorMessage(err)))
       .finally(() => setLoadingMedidas(false));
   }, [activeTab, medidas, toast]);
@@ -96,7 +106,7 @@ export default function Perfil() {
   }, [activeTab, fotos, toast]);
 
   if (loadingBase || !perfil) {
-    return <div className="p-8 text-section-label animate-pulse">Carregando…</div>;
+    return <PageLoader mensagem="Carregando seu perfil..." />;
   }
 
   const inadimplente = perfil.status === 'inadimplente';
@@ -106,7 +116,7 @@ export default function Perfil() {
     .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))[0];
 
   return (
-    <div className="max-w-5xl mx-auto p-6 md:p-10 space-y-6">
+    <div className="max-w-5xl mx-auto p-4 md:p-10 space-y-5 md:space-y-6">
       <header className="flex items-start justify-between flex-wrap gap-4">
         <div className="inline-flex items-center gap-2">
           <span className="text-2xl font-black tracking-tight text-white">COACH</span>
@@ -125,13 +135,13 @@ export default function Perfil() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1 border-b border-surface-border">
+      <div className="flex gap-1 border-b border-surface-border overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             className={
-              'px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 -mb-px ' +
+              'px-4 py-3 md:py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ' +
               (activeTab === t.id
                 ? 'text-brand border-brand'
                 : 'text-zinc-500 border-transparent hover:text-white')
@@ -151,7 +161,7 @@ export default function Perfil() {
       )}
 
       {activeTab === 'medidas' && (
-        <TabMedidas medidas={medidas} loading={loadingMedidas} />
+        <TabMedidas medidas={medidas} evolucao={evolucao} loading={loadingMedidas} />
       )}
 
       {activeTab === 'fotos' && (
@@ -229,16 +239,73 @@ const COLUNAS_MEDIDAS = [
   { k: 'panturrilha_esq_cm', label: 'Panturrilha E', sufixo: ' cm' },
 ];
 
-function TabMedidas({ medidas, loading }) {
+function formatDataBR(d) {
+  if (!d) return '';
+  const [y, m, dd] = String(d).split('-');
+  return `${dd}/${m}`;
+}
+
+function CustomTooltip({ active, payload, label, suffix = '' }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-lg">
+      <p className="text-zinc-400 mb-1">{label}</p>
+      {payload.map((entry) => (
+        entry.value == null ? null : (
+          <p key={entry.name} style={{ color: entry.color }} className="font-bold">
+            {entry.name}: {Number(entry.value).toFixed(1)}{suffix}
+          </p>
+        )
+      ))}
+    </div>
+  );
+}
+
+function BFTooltip({ active, payload, label, inicial }) {
+  if (!active || !payload?.length) return null;
+  const valor = payload[0]?.value;
+  const diff = valor != null && inicial != null ? valor - inicial : null;
+  return (
+    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-lg">
+      <p className="text-zinc-400 mb-1">{label}</p>
+      <p style={{ color: '#f97316' }} className="font-bold">
+        %BF: {valor == null ? '—' : `${Number(valor).toFixed(1)}%`}
+      </p>
+      {diff != null && (
+        <p className={`text-xs font-bold ${diff < 0 ? 'text-green-400' : diff > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+          {diff > 0 ? '+' : ''}{diff.toFixed(1)}% desde o início
+        </p>
+      )}
+    </div>
+  );
+}
+
+function diffNum(ultima, primeira, key) {
+  const a = ultima?.[key];
+  const b = primeira?.[key];
+  if (a == null || b == null) return null;
+  return Math.round((Number(a) - Number(b)) * 10) / 10;
+}
+
+function corDiff(diff, melhorQuandoMenor = true) {
+  if (diff == null || diff === 0) return 'text-zinc-400';
+  if (melhorQuandoMenor) return diff < 0 ? 'text-green-400' : 'text-red-400';
+  return diff > 0 ? 'text-green-400' : 'text-red-400';
+}
+
+function TabMedidas({ medidas, evolucao, loading }) {
+  const [metrica, setMetrica] = useState('peso');
+
   if (loading || medidas === null) {
-    return <div className="text-section-label animate-pulse py-8">Carregando medidas…</div>;
+    return <PageLoader mensagem="Carregando medidas..." />;
   }
   if (!medidas.length) {
     return (
-      <Card className="p-10 text-center">
-        <div className="text-section-label mb-1">Sem dados</div>
-        <div className="text-zinc-400">Nenhuma medição registrada ainda.</div>
-      </Card>
+      <EmptyState
+        icone="📏"
+        titulo="Nenhuma medição ainda"
+        descricao="Seu professor ainda não registrou suas medidas."
+      />
     );
   }
 
@@ -247,56 +314,127 @@ function TabMedidas({ medidas, loading }) {
   );
   const ultima = ordenadas[0];
 
-  const serieGrafico = [...medidas]
-    .filter((m) => m.peso_kg != null)
-    .sort((a, b) => new Date(a.data_medicao) - new Date(b.data_medicao))
-    .map((m) => ({
-      data: new Date(m.data_medicao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      peso: Number(m.peso_kg),
-    }));
+  const evol = Array.isArray(evolucao) ? evolucao : [];
+  const serie = evol.map((p) => ({ ...p, data_br: formatDataBR(p.data) }));
+  const primeiraEv = serie[0] || null;
+  const ultimaEv = serie[serie.length - 1] || null;
 
   const metricasPreenchidas = COLUNAS_MEDIDAS.filter(
     (c) => ultima[c.k] != null && ultima[c.k] !== ''
   );
 
+  if (serie.length < 2) {
+    return (
+      <div className="space-y-6">
+        <section>
+          <div className="text-section-label mb-2">Última medição — {formatDate(ultima.data_medicao)}</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {metricasPreenchidas.map((c, i) => (
+              <MetricaCard
+                key={c.k}
+                label={c.label}
+                value={formatNum(ultima[c.k], c.sufixo)}
+                accent={i < 2}
+              />
+            ))}
+          </div>
+          <p className="text-xs text-zinc-500 mt-3">
+            Registre mais medições para ver sua evolução.
+          </p>
+        </section>
+
+        <section>
+          <div className="text-section-label mb-2">Histórico</div>
+          <HistoricoTabela ordenadas={ordenadas} />
+        </section>
+      </div>
+    );
+  }
+
+  const inicialBF = primeiraEv?.percentual_gordura ?? null;
+  const diffPeso     = diffNum(ultimaEv, primeiraEv, 'peso_kg');
+  const diffBF       = diffNum(ultimaEv, primeiraEv, 'percentual_gordura');
+  const diffMagro    = diffNum(ultimaEv, primeiraEv, 'peso_magro_kg');
+  const diffCintura  = diffNum(ultimaEv, primeiraEv, 'cintura_cm');
+
   return (
     <div className="space-y-6">
       <section>
-        <div className="text-section-label mb-2">Última medição — {formatDate(ultima.data_medicao)}</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {metricasPreenchidas.map((c, i) => (
-            <MetricaCard
-              key={c.k}
-              label={c.label}
-              value={formatNum(ultima[c.k], c.sufixo)}
-              accent={i < 2}
-            />
-          ))}
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+          <div className="text-section-label">Evolução</div>
+          <div className="flex gap-1">
+            {[
+              { id: 'peso',    label: 'Peso' },
+              { id: 'bf',      label: '%BF' },
+              { id: 'medidas', label: 'Medidas' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setMetrica(opt.id)}
+                className={
+                  'text-xs px-3 py-1 rounded font-bold transition-colors ' +
+                  (metrica === opt.id
+                    ? 'bg-brand text-white'
+                    : 'bg-surface-elevated text-zinc-400 hover:text-white')
+                }
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <Card className="p-5">
+          <div style={{ height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              {metrica === 'peso' ? (
+                <ComposedChart data={serie} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="#1f1f1f" strokeDasharray="3 3" />
+                  <XAxis dataKey="data_br" tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" />
+                  <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" domain={['dataMin - 2', 'dataMax + 2']} />
+                  <Tooltip content={<CustomTooltip suffix=" kg" />} cursor={{ stroke: '#404040', strokeWidth: 1 }} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: '#a1a1aa' }} />
+                  <Line type="monotone" dataKey="peso_kg"       name="Peso total" stroke="#f97316" strokeWidth={2}   dot={false} />
+                  <Line type="monotone" dataKey="peso_magro_kg" name="Peso magro" stroke="#22c55e" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
+                  <Line type="monotone" dataKey="peso_gordo_kg" name="Peso gordo" stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
+                </ComposedChart>
+              ) : metrica === 'bf' ? (
+                <AreaChart data={serie} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="#1f1f1f" strokeDasharray="3 3" />
+                  <XAxis dataKey="data_br" tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" />
+                  <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" domain={['dataMin - 1', 'dataMax + 1']} />
+                  <Tooltip content={<BFTooltip inicial={inicialBF} />} cursor={{ stroke: '#404040', strokeWidth: 1 }} />
+                  {inicialBF != null && (
+                    <ReferenceLine y={inicialBF} stroke="#52525b" strokeDasharray="4 4" label={{ value: 'Inicial', fill: '#71717a', fontSize: 10, position: 'right' }} />
+                  )}
+                  <Area type="monotone" dataKey="percentual_gordura" name="%BF" stroke="#f97316" fill="#f97316" fillOpacity={0.15} strokeWidth={2} />
+                </AreaChart>
+              ) : (
+                <LineChart data={serie} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="#1f1f1f" strokeDasharray="3 3" />
+                  <XAxis dataKey="data_br" tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" />
+                  <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" domain={['dataMin - 2', 'dataMax + 2']} />
+                  <Tooltip content={<CustomTooltip suffix=" cm" />} cursor={{ stroke: '#404040', strokeWidth: 1 }} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: '#a1a1aa' }} />
+                  <Line type="monotone" dataKey="cintura_cm"   name="Cintura" stroke="#f97316" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="quadril_cm"   name="Quadril" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="braco_dir_cm" name="Braço D" stroke="#22c55e" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="coxa_dir_cm"  name="Coxa D"  stroke="#60a5fa" strokeWidth={2} dot={false} />
+                </LineChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </Card>
       </section>
 
-      {serieGrafico.length >= 2 && (
-        <section>
-          <div className="text-section-label mb-2">Evolução do peso</div>
-          <Card className="p-5">
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={serieGrafico} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="#262626" strokeDasharray="3 3" />
-                  <XAxis dataKey="data" tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" />
-                  <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" domain={['dataMin - 2', 'dataMax + 2']} />
-                  <Tooltip
-                    contentStyle={{ background: '#0a0a0a', border: '1px solid #262626', borderRadius: 6, fontSize: 12 }}
-                    labelStyle={{ color: '#a1a1aa' }}
-                    formatter={(v) => [`${v} kg`, 'Peso']}
-                  />
-                  <Line type="monotone" dataKey="peso" stroke="#f97316" strokeWidth={2.5} dot={{ r: 3, fill: '#f97316' }} activeDot={{ r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </section>
-      )}
+      <section>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <ProgressoCard label="Peso"       valor={ultimaEv.peso_kg}            sufixo="kg" diff={diffPeso}    melhorQuandoMenor />
+          <ProgressoCard label="%BF"        valor={ultimaEv.percentual_gordura} sufixo="%"  diff={diffBF}      melhorQuandoMenor />
+          <ProgressoCard label="Peso magro" valor={ultimaEv.peso_magro_kg}      sufixo="kg" diff={diffMagro}   melhorQuandoMenor={false} />
+          <ProgressoCard label="Cintura"    valor={ultimaEv.cintura_cm}         sufixo="cm" diff={diffCintura} melhorQuandoMenor />
+        </div>
+      </section>
 
       <section>
         <div className="text-section-label mb-2">Histórico</div>
@@ -351,7 +489,7 @@ function TabFotos({ fotos, loading, onReload }) {
   const [openSend, setOpenSend] = useState(false);
 
   if (loading || fotos === null) {
-    return <div className="text-section-label animate-pulse py-8">Carregando fotos…</div>;
+    return <PageLoader mensagem="Carregando fotos..." />;
   }
 
   const blocos = Array.isArray(fotos) ? fotos : [];
@@ -363,10 +501,12 @@ function TabFotos({ fotos, loading, onReload }) {
       </div>
 
       {blocos.length === 0 && (
-        <Card className="p-10 text-center">
-          <div className="text-section-label mb-1">Sem fotos</div>
-          <div className="text-zinc-400">Você ainda não enviou fotos.</div>
-        </Card>
+        <EmptyState
+          icone="📷"
+          titulo="Nenhuma foto enviada"
+          descricao="Envie suas fotos de progresso para acompanhar sua evolução."
+          acao={<Button onClick={() => setOpenSend(true)}>Enviar fotos</Button>}
+        />
       )}
 
       {blocos.map((bloco) => (
@@ -405,66 +545,60 @@ function TabFotos({ fotos, loading, onReload }) {
 
 function EnviarFotosModal({ open, onClose, onSent }) {
   const toast = useToast();
-  const [saving, setSaving] = useState(false);
-  const [urls, setUrls] = useState({ frente: '', costas: '', lado_esq: '', lado_dir: '' });
+  const [enviadas, setEnviadas] = useState({});
 
   function reset() {
-    setUrls({ frente: '', costas: '', lado_esq: '', lado_dir: '' });
+    setEnviadas({});
   }
 
-  async function salvar() {
-    const entries = Object.entries(urls).filter(([, v]) => v && v.trim());
-    if (entries.length === 0) {
-      toast.error('Informe pelo menos uma URL.');
-      return;
-    }
-    setSaving(true);
+  async function uploadFoto(posicao, file) {
+    const formData = new FormData();
+    formData.append('foto', file);
+    formData.append('posicao', posicao);
     try {
-      await Promise.all(entries.map(([posicao, url]) =>
-        api.post('/aluno/fotos', { url: url.trim(), posicao })
-      ));
-      toast.success('Fotos enviadas.');
-      reset();
-      onSent();
+      const res = await api.post('/aluno/fotos', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setEnviadas((prev) => ({ ...prev, [posicao]: res.data.url }));
+      toast.success(`Foto ${posicao} enviada.`);
     } catch (err) {
       toast.error(errorMessage(err));
-    } finally {
-      setSaving(false);
+      throw err;
     }
+  }
+
+  function fechar() {
+    const teveEnvio = Object.keys(enviadas).length > 0;
+    reset();
+    onClose();
+    if (teveEnvio) onSent();
   }
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={fechar}
       title="Enviar novas fotos"
       size="lg"
       footer={<>
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button onClick={salvar} disabled={saving}>{saving ? 'Enviando…' : 'Enviar'}</Button>
+        <Button variant="ghost" onClick={fechar}>Fechar</Button>
       </>}
     >
       <div className="space-y-3">
         <div className="text-xs text-zinc-500">
-          Cole a URL pública de cada foto. Não é obrigatório preencher todas — envie as que tiver hoje.
+          Cada foto é enviada na hora que você seleciona. Não é obrigatório enviar todas — envie as que tiver hoje.
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {POSICOES.map((pos) => (
             <div key={pos.id} className="space-y-1">
               <div className="text-section-label">{pos.label}</div>
-              <Input
-                value={urls[pos.id]}
-                onChange={(e) => setUrls({ ...urls, [pos.id]: e.target.value })}
-                placeholder="https://…"
+              <ImageUpload
+                label={`Selecione a foto: ${pos.label}`}
+                accept="image/jpeg,image/png,image/webp"
+                maxMB={15}
+                preview={enviadas[pos.id]}
+                onUpload={(file) => uploadFoto(pos.id, file)}
               />
-              {urls[pos.id] && (
-                <img
-                  src={urls[pos.id]}
-                  alt="preview"
-                  className="w-20 h-24 rounded-md object-cover mt-1 bg-black border border-surface-border"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              )}
             </div>
           ))}
         </div>
@@ -474,32 +608,68 @@ function EnviarFotosModal({ open, onClose, onSent }) {
 }
 
 function TabFaturas({ faturas }) {
+  if (faturas.length === 0) {
+    return (
+      <EmptyState
+        icone="✅"
+        titulo="Nenhuma fatura em aberto"
+        descricao="Você está em dia!"
+      />
+    );
+  }
+
   return (
-    <Card className="overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-section-label border-b border-surface-border">
-            <th className="text-left px-5 py-3 font-semibold">Vencimento</th>
-            <th className="text-right px-5 py-3 font-semibold">Valor</th>
-            <th className="text-left px-5 py-3 font-semibold">Status</th>
-            <th className="text-left px-5 py-3 font-semibold">Pago em</th>
-          </tr>
-        </thead>
-        <tbody>
-          {faturas.length === 0 && (
-            <tr><td colSpan={4} className="text-center text-zinc-500 py-8">Nenhuma fatura registrada.</td></tr>
-          )}
-          {faturas.map((f) => (
-            <tr key={f.id} className="border-b border-surface-border text-zinc-300">
-              <td className="px-5 py-2.5 text-white tabular-nums">{formatDate(f.data_vencimento)}</td>
-              <td className="px-5 py-2.5 text-right font-bold text-brand tabular-nums">{formatCurrency(f.valor_final ?? f.valor)}</td>
-              <td className="px-5 py-2.5 uppercase text-xs tracking-widest">{f.status}</td>
-              <td className="px-5 py-2.5 tabular-nums">{formatDate(f.data_baixa)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+    <>
+      {/* Desktop: tabela */}
+      <Card className="hidden md:block overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-section-label border-b border-surface-border">
+                <th className="text-left px-5 py-3 font-semibold">Vencimento</th>
+                <th className="text-right px-5 py-3 font-semibold">Valor</th>
+                <th className="text-left px-5 py-3 font-semibold">Status</th>
+                <th className="text-left px-5 py-3 font-semibold">Pago em</th>
+              </tr>
+            </thead>
+            <tbody>
+              {faturas.map((f) => (
+                <tr key={f.id} className="border-b border-surface-border text-zinc-300">
+                  <td className="px-5 py-2.5 text-white tabular-nums">{formatDate(f.data_vencimento)}</td>
+                  <td className="px-5 py-2.5 text-right font-bold text-brand tabular-nums">{formatCurrency(f.valor_final ?? f.valor)}</td>
+                  <td className="px-5 py-2.5 uppercase text-xs tracking-widest">{f.status}</td>
+                  <td className="px-5 py-2.5 tabular-nums">{formatDate(f.data_baixa)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Mobile: cards */}
+      <div className="md:hidden space-y-3">
+        {faturas.map((f) => (
+          <div key={f.id} className="bg-surface-card border border-surface-border rounded-xl p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <p className="text-zinc-600 text-[10px] uppercase tracking-widest">Vencimento</p>
+                <p className="text-white font-bold tabular-nums">{formatDate(f.data_vencimento)}</p>
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-300 bg-surface-elevated border border-surface-border rounded px-2 py-1">{f.status}</span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <p className="text-zinc-600 text-[10px] uppercase tracking-widest">Valor</p>
+              <p className="font-black text-brand text-lg tabular-nums">{formatCurrency(f.valor_final ?? f.valor)}</p>
+            </div>
+            {f.data_baixa && (
+              <div className="mt-2 text-xs text-zinc-500">
+                Pago em <span className="text-zinc-300 tabular-nums">{formatDate(f.data_baixa)}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -510,6 +680,58 @@ function MetricaCard({ label, value, accent = false }) {
       <div className={'text-2xl font-black mt-1 ' + (accent ? 'text-brand' : 'text-white')}>
         {value}
       </div>
+    </Card>
+  );
+}
+
+function ProgressoCard({ label, valor, sufixo, diff, melhorQuandoMenor = true }) {
+  const dispValor = valor == null
+    ? '—'
+    : `${Number(valor).toFixed(1)}${sufixo}`;
+  const corClasse = corDiff(diff, melhorQuandoMenor);
+  const sinal = diff != null && diff > 0 ? '+' : '';
+  return (
+    <div className="bg-surface-elevated border border-surface-border rounded-xl p-3">
+      <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-xl font-black text-white">{dispValor}</p>
+      {diff != null && (
+        <p className={`text-xs font-bold ${corClasse}`}>
+          {sinal}{diff.toFixed(1)}{sufixo} desde o início
+        </p>
+      )}
+    </div>
+  );
+}
+
+function HistoricoTabela({ ordenadas }) {
+  return (
+    <Card className="overflow-x-auto">
+      <table className="w-full text-sm whitespace-nowrap">
+        <thead>
+          <tr className="text-section-label border-b border-surface-border">
+            <th className="text-left px-4 py-3 font-semibold">Data</th>
+            {COLUNAS_MEDIDAS.map((c) => (
+              <th key={c.k} className="text-right px-3 py-3 font-semibold">{c.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {ordenadas.map((m) => (
+            <tr key={m.id} className="border-b border-surface-border text-zinc-300">
+              <td className="px-4 py-2.5 text-white tabular-nums">
+                {new Date(m.data_medicao).toLocaleDateString('pt-BR')}
+              </td>
+              {COLUNAS_MEDIDAS.map((c) => (
+                <td key={c.k} className="px-3 py-2.5 text-right tabular-nums">
+                  {m[c.k] == null
+                    ? <span className="text-zinc-600">—</span>
+                    : `${Number(m[c.k]).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${c.sufixo}`}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </Card>
   );
 }

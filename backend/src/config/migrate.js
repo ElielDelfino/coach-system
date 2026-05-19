@@ -81,6 +81,34 @@ async function migrate() {
           ADD COLUMN IF NOT EXISTS panturrilha_esq_cm  NUMERIC(5,1)
       `);
 
+      // M006: s3_key em aluno_fotos (enviada_por já criada em M008)
+      await client.query(`
+        ALTER TABLE aluno_fotos
+          ADD COLUMN IF NOT EXISTS s3_key TEXT
+      `);
+
+      // M007: s3_keys em exercicios e alimentos
+      await client.query(`
+        ALTER TABLE exercicios
+          ADD COLUMN IF NOT EXISTS thumbnail_s3_key TEXT,
+          ADD COLUMN IF NOT EXISTS video_s3_key     TEXT
+      `);
+      await client.query(`
+        ALTER TABLE alimentos
+          ADD COLUMN IF NOT EXISTS foto_s3_key TEXT
+      `);
+
+      // M010: suporte a YouTube em exercicios
+      await client.query(`
+        ALTER TABLE exercicios
+          ADD COLUMN IF NOT EXISTS video_youtube_url TEXT
+      `);
+      await client.query(`
+        ALTER TABLE exercicios
+          ADD COLUMN IF NOT EXISTS video_tipo TEXT
+            CHECK (video_tipo IN ('s3', 'youtube'))
+      `);
+
       console.log('[migrate] Migrações incrementais aplicadas.');
     }
 

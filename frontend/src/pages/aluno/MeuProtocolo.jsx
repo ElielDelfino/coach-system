@@ -6,6 +6,8 @@ import { useToast, errorMessage } from '../../components/ui/Toast';
 import { Card } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import MacroBar from '../../components/MacroBar';
+import PageLoader from '../../components/ui/PageLoader';
+import EmptyState from '../../components/ui/EmptyState';
 
 const TABS = [
   { id: 'alimentacao', label: 'Alimentação' },
@@ -99,12 +101,24 @@ export default function MeuProtocolo() {
     gord: a.gord + Number(r.total_gord || 0),
   }), { kcal: 0, prot: 0, carb: 0, gord: 0 }), [refeicoes]);
 
-  if (loading || !protocolo) {
-    return <div className="p-8 text-section-label animate-pulse">Carregando…</div>;
+  if (loading) {
+    return <PageLoader mensagem="Carregando seu protocolo..." />;
+  }
+
+  if (!protocolo) {
+    return (
+      <div className="max-w-4xl mx-auto p-4 md:p-10">
+        <EmptyState
+          icone="📋"
+          titulo="Nenhum protocolo ativo"
+          descricao="Seu professor ainda não criou um protocolo para você."
+        />
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 md:p-10 space-y-6">
+    <div className="max-w-4xl mx-auto p-4 md:p-10 space-y-6">
       <Link to="/aluno/perfil" className="text-xs uppercase tracking-widest text-zinc-500 hover:text-brand">
         ← Meu perfil
       </Link>
@@ -125,13 +139,13 @@ export default function MeuProtocolo() {
         </Button>
       </header>
 
-      <nav className="flex border-b border-surface-border">
+      <nav className="flex border-b border-surface-border overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={clsx(
-              'px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px',
+              'px-4 md:px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px whitespace-nowrap shrink-0',
               tab === t.id
                 ? 'text-white border-b-2 border-brand'
                 : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-transparent'

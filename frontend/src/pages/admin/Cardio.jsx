@@ -6,6 +6,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import { Field } from './Alunos';
+import { SkeletonTabela } from '../../components/ui/Skeleton';
+import EmptyState from '../../components/ui/EmptyState';
 
 const INTENSIDADES = [
   { v: '', l: 'Todas' },
@@ -51,8 +53,8 @@ export default function Cardio() {
   }
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl">
-      <header className="flex items-end justify-between">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6 max-w-7xl">
+      <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="text-section-label">Biblioteca</div>
           <h1 className="text-page-title mt-1">Cardio</h1>
@@ -60,19 +62,26 @@ export default function Cardio() {
         <Button onClick={() => setOpenCreate(true)}>+ Adicionar cardio</Button>
       </header>
 
-      <Card className="p-4 flex gap-3">
+      <Card className="p-4 flex flex-col md:flex-row gap-3">
         <div className="flex-1"><Input placeholder="Filtrar por tipo (corrida, bike…)" value={tipo} onChange={(e) => setTipo(e.target.value)} /></div>
         <select value={intensidade} onChange={(e) => setIntensidade(e.target.value)}
-          className="bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm md:w-48">
+          className="bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm md:w-48">
           {INTENSIDADES.map((i) => <option key={i.v} value={i.v}>{i.l}</option>)}
         </select>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading && <div className="col-span-full text-center text-zinc-500 py-10">Carregando…</div>}
-        {!loading && data.length === 0 && (
-          <div className="col-span-full text-center text-zinc-500 py-10">Nenhum cardio cadastrado.</div>
-        )}
+      {loading ? (
+        <Card className="overflow-hidden">
+          <SkeletonTabela linhas={5} colunas={4} />
+        </Card>
+      ) : data.length === 0 ? (
+        <EmptyState
+          icone="🏃"
+          titulo="Nenhum cardio cadastrado"
+          descricao="Cadastre tipos de cardio para usar nos protocolos."
+        />
+      ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {data.map((c) => (
           <Card key={c.id} className="p-5 cursor-pointer hover:bg-surface-elevated transition-colors" onClick={() => setEditing(c.id)}>
             <div className="flex items-start justify-between gap-2">
@@ -103,6 +112,7 @@ export default function Cardio() {
           </Card>
         ))}
       </div>
+      )}
 
       <CardioModal
         open={openCreate || !!editing}
@@ -176,11 +186,11 @@ function CardioModal({ open, onClose, cId, onSaved }) {
       </>}
     >
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Tipo *"><Input value={form.tipo || ''} onChange={(e) => setForm({ ...form, tipo: e.target.value })} placeholder="corrida, bike…" /></Field>
           <Field label="Intensidade">
             <select value={form.intensidade || 'moderada'} onChange={(e) => setForm({ ...form, intensidade: e.target.value })}
-              className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm">
+              className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm">
               <option value="leve">Leve</option>
               <option value="moderada">Moderada</option>
               <option value="intensa">Intensa</option>
@@ -193,7 +203,7 @@ function CardioModal({ open, onClose, cId, onSaved }) {
           <Field label="Velocidade (km/h)"><Input type="number" step="0.1" value={form.velocidade ?? ''} onChange={(e) => setForm({ ...form, velocidade: e.target.value })} /></Field>
         </div>
         <Field label="Observações">
-          <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm resize-none"
+          <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm resize-none"
             value={form.observacoes || ''} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
         </Field>
       </div>

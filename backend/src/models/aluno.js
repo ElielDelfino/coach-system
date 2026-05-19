@@ -1,4 +1,14 @@
 const pool = require('../config/db');
+const { extrairVideoIdYoutube, urlEmbedYoutube } = require('../services/storage');
+
+function decorarExercicio(row) {
+  if (!row) return row;
+  const videoId = extrairVideoIdYoutube(row.video_youtube_url);
+  return {
+    ...row,
+    video_embed_url: videoId ? urlEmbedYoutube(videoId) : null,
+  };
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -274,31 +284,34 @@ function agruparFotosPorData(rows) {
 
 async function findFotos(aluno_id) {
   const { rows } = await pool.query(
-    `SELECT id, url, posicao, data_foto, enviada_por, created_at
+    `SELECT id, url, posicao, data_foto, s3_key, enviada_por, created_at
      FROM aluno_fotos WHERE aluno_id = $1 ORDER BY data_foto DESC, created_at DESC`,
     [aluno_id]
   );
   return agruparFotosPorData(rows);
 }
 
-async function createFoto(aluno_id, { url, posicao, data_foto, enviada_por }) {
+async function createFoto(aluno_id, { url, posicao, data_foto, s3_key, enviada_por }) {
   const { rows } = await pool.query(
-    `INSERT INTO aluno_fotos (aluno_id, url, posicao, data_foto, enviada_por)
-     VALUES ($1,$2,$3,$4,$5)
-     RETURNING id, url, posicao, data_foto, created_at`,
+    `INSERT INTO aluno_fotos (aluno_id, url, posicao, data_foto, s3_key, enviada_por)
+     VALUES ($1,$2,$3,$4,$5,$6)
+     RETURNING id, url, posicao, data_foto, s3_key, created_at`,
     [aluno_id, url, posicao,
      data_foto || new Date().toISOString().slice(0, 10),
+     s3_key || null,
      enviada_por || null]
   );
   return rows[0];
 }
 
 async function deleteFoto(fotoId, aluno_id) {
-  const { rowCount } = await pool.query(
-    `DELETE FROM aluno_fotos WHERE id = $1 AND aluno_id = $2`,
+  const { rows } = await pool.query(
+    `DELETE FROM aluno_fotos WHERE id = $1 AND aluno_id = $2
+     RETURNING s3_key`,
     [fotoId, aluno_id]
   );
-  return rowCount;
+  if (!rows.length) return { rowCount: 0, s3_key: null };
+  return { rowCount: 1, s3_key: rows[0].s3_key };
 }
 
 // ─── pagamentos ───────────────────────────────────────────────────────────────
@@ -506,18 +519,19 @@ async function findExercicios({ grupo_muscular, nivel, ativo = true, busca }) {
 
   const where = `WHERE ${conditions.join(' AND ')}`;
   const { rows } = await pool.query(
-    `SELECT id, nome, grupo_muscular, equipamento, nivel, thumbnail_url, ativo
+    `SELECT id, nome, grupo_muscular, equipamento, nivel,
+            thumbnail_url, video_url, video_tipo, video_youtube_url, ativo
      FROM exercicios AS e ${where} ORDER BY e.nome`,
     params
   );
-  return { data: rows, total: rows.length };
+  return { data: rows.map(decorarExercicio), total: rows.length };
 }
 
 async function findExercicioById(id) {
   const { rows } = await pool.query(
     `SELECT * FROM exercicios WHERE id = $1`, [id]
   );
-  return rows[0] || null;
+  return decorarExercicio(rows[0] || null);
 }
 
 async function createExercicio(d) {
@@ -526,15 +540,16 @@ async function createExercicio(d) {
        (nome, grupo_muscular, equipamento, nivel, video_url, thumbnail_url,
         observacoes_tecnicas, execucao_correta, execucao_errada,
         descanso_padrao_seg, series_recomendadas, repeticoes_recomendadas,
-        cadencia, exercicio_substituto_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        cadencia, exercicio_substituto_id, video_youtube_url, video_tipo)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      RETURNING id, nome, created_at`,
     [d.nome, d.grupo_muscular, d.equipamento || null, d.nivel || null,
      d.video_url || null, d.thumbnail_url || null, d.observacoes_tecnicas || null,
      d.execucao_correta || null, d.execucao_errada || null,
      d.descanso_padrao_seg || null, d.series_recomendadas || null,
      d.repeticoes_recomendadas || null, d.cadencia || null,
-     d.exercicio_substituto_id || null]
+     d.exercicio_substituto_id || null,
+     d.video_youtube_url || null, d.video_tipo || null]
   );
   return rows[0];
 }
@@ -542,7 +557,8 @@ async function createExercicio(d) {
 async function updateExercicio(id, d) {
   const allowed = ['nome','grupo_muscular','equipamento','nivel','video_url','thumbnail_url',
     'observacoes_tecnicas','execucao_correta','execucao_errada','descanso_padrao_seg',
-    'series_recomendadas','repeticoes_recomendadas','cadencia','exercicio_substituto_id'];
+    'series_recomendadas','repeticoes_recomendadas','cadencia','exercicio_substituto_id',
+    'video_youtube_url','video_tipo','thumbnail_s3_key','video_s3_key'];
   const keys = allowed.filter((k) => d[k] !== undefined);
   if (!keys.length) return 0;
   const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
@@ -550,6 +566,80 @@ async function updateExercicio(id, d) {
     `UPDATE exercicios SET ${sets} WHERE id = $1`, [id, ...keys.map((k) => d[k])]
   );
   return rowCount;
+}
+
+// Lê o key antigo (FOR UPDATE), substitui pelo novo e devolve o antigo
+// para que o controller delete o arquivo no S3.
+async function trocarExercicioThumbnail(id, { thumbnail_url, thumbnail_s3_key }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(
+      `SELECT thumbnail_s3_key FROM exercicios WHERE id = $1 FOR UPDATE`, [id]
+    );
+    if (!cur.rows[0]) { await client.query('ROLLBACK'); return { found: false }; }
+    const oldKey = cur.rows[0].thumbnail_s3_key;
+    await client.query(
+      `UPDATE exercicios SET thumbnail_url = $2, thumbnail_s3_key = $3 WHERE id = $1`,
+      [id, thumbnail_url, thumbnail_s3_key]
+    );
+    await client.query('COMMIT');
+    return { found: true, old_key: oldKey };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function trocarExercicioVideo(id, { video_url, video_s3_key }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(
+      `SELECT video_s3_key FROM exercicios WHERE id = $1 FOR UPDATE`, [id]
+    );
+    if (!cur.rows[0]) { await client.query('ROLLBACK'); return { found: false }; }
+    const oldKey = cur.rows[0].video_s3_key;
+    await client.query(
+      `UPDATE exercicios
+       SET video_url = $2, video_s3_key = $3,
+           video_tipo = 's3', video_youtube_url = NULL
+       WHERE id = $1`,
+      [id, video_url, video_s3_key]
+    );
+    await client.query('COMMIT');
+    return { found: true, old_key: oldKey };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function trocarAlimentoFoto(id, { foto_url, foto_s3_key }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query(
+      `SELECT foto_s3_key FROM alimentos WHERE id = $1 FOR UPDATE`, [id]
+    );
+    if (!cur.rows[0]) { await client.query('ROLLBACK'); return { found: false }; }
+    const oldKey = cur.rows[0].foto_s3_key;
+    await client.query(
+      `UPDATE alimentos SET foto_url = $2, foto_s3_key = $3 WHERE id = $1`,
+      [id, foto_url, foto_s3_key]
+    );
+    await client.query('COMMIT');
+    return { found: true, old_key: oldKey };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 async function setExercicioAtivo(id, ativo) {
@@ -598,7 +688,7 @@ async function createAlimento(d) {
 
 async function updateAlimento(id, d) {
   const allowed = ['nome','categoria','quantidade_base','unidade','calorias',
-    'proteinas','carboidratos','gorduras','fibra','sodio','foto_url'];
+    'proteinas','carboidratos','gorduras','fibra','sodio','foto_url','foto_s3_key'];
   const keys = allowed.filter((k) => d[k] !== undefined);
   if (!keys.length) return 0;
   const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
@@ -1138,8 +1228,10 @@ module.exports = {
   updateFatura, darBaixaFatura, deleteFatura,
   // exercicios
   findExercicios, findExercicioById, createExercicio, updateExercicio, setExercicioAtivo,
+  trocarExercicioThumbnail, trocarExercicioVideo,
   // alimentos
   findAlimentos, findAlimentoById, createAlimento, updateAlimento, setAlimentoAtivo,
+  trocarAlimentoFoto,
   // cardio
   findCardio, findCardioById, createCardio, updateCardio, setCardioAtivo,
   // protocolos

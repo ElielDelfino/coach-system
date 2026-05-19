@@ -12,6 +12,7 @@
 | Módulo | Prefixo |
 |---|---|
 | Autenticação | `/api/auth` |
+| Admin → Dashboard | `/api/admin/dashboard` |
 | Admin → Alunos | `/api/admin/alunos` |
 | Admin → Pagamentos | `/api/admin/pagamentos` e `/api/admin/alunos/:id/pagamentos` |
 | Admin → Faturas | `/api/admin/faturas/:id` e `/api/admin/alunos/:id/faturas` |
@@ -97,6 +98,74 @@ Cookie `refreshToken` removido. Access token adicionado à blacklist do Redis at
 
 **Erros:**
 - `401` — Token inválido ou ausente
+
+---
+
+# ADMIN — DASHBOARD
+
+---
+
+## GET /api/admin/dashboard/evolucao
+
+**Auth:** Bearer token
+**Role:** admin
+
+Evolução agregada das medições dos alunos nos últimos 90 dias, agrupada por data e ordenada cronologicamente.
+
+**Response 200:**
+```json
+{
+  "evolucao": [
+    {
+      "data": "2026-01-15",
+      "media_peso_kg": 82.3,
+      "media_percentual_gordura": 18.5,
+      "total_alunos_medidos": 12
+    }
+  ]
+}
+```
+
+Notas:
+- `data` no formato `YYYY-MM-DD`.
+- Valores numéricos arredondados a 1 casa decimal; podem vir `null` quando o campo não foi preenchido em nenhuma medição daquela data.
+- Se não houver medições no período, `evolucao` é `[]`.
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+
+---
+
+## GET /api/admin/dashboard/resumo
+
+**Auth:** Bearer token
+**Role:** admin
+
+Resumo financeiro e operacional para o dashboard administrativo.
+
+**Response 200:**
+```json
+{
+  "total_alunos": 48,
+  "ativos": 35,
+  "inadimplentes": 7,
+  "neutros": 6,
+  "receita_mes": 4200.00,
+  "a_receber_mes": 1800.00,
+  "alunos_sem_medicao_30d": 15
+}
+```
+
+Notas:
+- `ativos`, `inadimplentes`, `neutros` consideram apenas alunos com `ativo = true`.
+- `receita_mes` soma o valor final (após descontos) das faturas com `status = 'pago'` e `data_baixa` no mês corrente.
+- `a_receber_mes` soma o valor final das faturas com `status = 'pendente'` e `data_vencimento` no mês corrente.
+- `alunos_sem_medicao_30d` conta alunos ativos sem registro em `aluno_medidas` nos últimos 30 dias.
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
 
 ---
 
@@ -891,6 +960,75 @@ Só permite remover faturas com `status='pendente'`.
 
 ---
 
+## PUT /api/admin/exercicios/:id/thumbnail
+
+**Auth:** Bearer token
+**Role:** admin
+**Content-Type:** `multipart/form-data`
+
+**Fields:**
+- `thumbnail` (file) — JPG/PNG/WebP, máx. 15MB
+
+**Response 200:**
+```json
+{
+  "message": "Thumbnail atualizada.",
+  "thumbnail_url": "https://...",
+  "thumbnail_s3_key": "exercicios/thumbs/{uuid}.jpg"
+}
+```
+
+A thumbnail anterior (se houver `thumbnail_s3_key`) é removida do S3 automaticamente.
+
+**Erros:** `400`, `401`, `403`, `404`
+
+---
+
+## PUT /api/admin/exercicios/:id/video
+
+**Auth:** Bearer token
+**Role:** admin
+**Content-Type:** `multipart/form-data`
+
+**Fields:**
+- `video` (file) — MP4/WebM/MOV/AVI, máx. 500MB
+
+**Response 200:**
+```json
+{
+  "message": "Vídeo atualizado.",
+  "video_url": "https://...",
+  "video_s3_key": "exercicios/videos/{uuid}.mp4",
+  "video_tipo": "s3"
+}
+```
+
+Define `video_tipo = 's3'`, limpa `video_youtube_url` e remove o vídeo S3 anterior (se houver).
+
+**Erros:** `400`, `401`, `403`, `404`
+
+---
+
+## Vídeo de exercício — YouTube vs S3
+
+Os exercícios podem ter vídeo em duas formas:
+
+| Tipo | Campos preenchidos | Como salvar |
+|------|--------------------|-------------|
+| `youtube` | `video_youtube_url`, `video_tipo='youtube'`, `video_embed_url` (calculado) | `PUT /exercicios/:id` com `video_youtube_url` |
+| `s3` | `video_url`, `video_s3_key`, `video_tipo='s3'` | `PUT /exercicios/:id/video` (upload) |
+
+URLs aceitas para YouTube: `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/embed/`, `youtube.com/shorts/`.
+
+O response de `GET /api/admin/exercicios/:id` inclui:
+- `video_tipo`: `'s3' | 'youtube' | null`
+- `video_url`: URL S3 (quando `video_tipo='s3'`)
+- `video_youtube_url`: URL original colada pelo professor
+- `video_embed_url`: `https://www.youtube.com/embed/{videoId}` (calculado em runtime)
+- `thumbnail_url`, `thumbnail_s3_key`
+
+---
+
 ## PATCH /api/admin/exercicios/:id/ativar
 
 **Auth:** Bearer token
@@ -1013,6 +1151,30 @@ Só permite remover faturas com `status='pendente'`.
 ```json
 { "message": "Alimento atualizado com sucesso." }
 ```
+
+**Erros:** `400`, `401`, `403`, `404`
+
+---
+
+## PUT /api/admin/alimentos/:id/foto
+
+**Auth:** Bearer token
+**Role:** admin
+**Content-Type:** `multipart/form-data`
+
+**Fields:**
+- `foto` (file) — JPG/PNG/WebP, máx. 15MB
+
+**Response 200:**
+```json
+{
+  "message": "Foto atualizada.",
+  "foto_url": "https://...",
+  "foto_s3_key": "alimentos/fotos/{uuid}.jpg"
+}
+```
+
+A foto anterior (se houver `foto_s3_key`) é removida do S3 automaticamente.
 
 **Erros:** `400`, `401`, `403`, `404`
 
@@ -1899,6 +2061,43 @@ Macros são recalculados automaticamente.
 
 ---
 
+## GET /api/aluno/evolucao
+
+**Auth:** Bearer token
+**Role:** aluno
+
+Série de medições do aluno autenticado, ordenada cronologicamente para uso em gráficos.
+
+**Response 200:**
+```json
+{
+  "evolucao": [
+    {
+      "data": "2026-01-15",
+      "peso_kg": 85.0,
+      "percentual_gordura": 22.0,
+      "peso_magro_kg": 66.3,
+      "peso_gordo_kg": 18.7,
+      "cintura_cm": 88.0,
+      "quadril_cm": 102.0,
+      "braco_dir_cm": 34.0,
+      "braco_esq_cm": 33.5,
+      "coxa_dir_cm": 58.0,
+      "coxa_esq_cm": 57.5
+    }
+  ]
+}
+```
+
+Notas:
+- `data` no formato `YYYY-MM-DD`; ordenação cronológica ascendente.
+- Campos numéricos podem vir `null` quando não foram preenchidos na medição.
+- O `aluno_id` é resolvido a partir do JWT; nunca aceita parâmetro.
+
+**Erros:** `401`, `403`
+
+---
+
 ## GET /api/aluno/fotos
 
 **Auth:** Bearer token
@@ -1907,6 +2106,34 @@ Macros são recalculados automaticamente.
 **Response 200:** mesmo formato de `GET /api/admin/alunos/:id/fotos`
 
 **Erros:** `401`, `403`
+
+---
+
+## POST /api/aluno/fotos
+
+**Auth:** Bearer token
+**Role:** aluno
+**Content-Type:** `multipart/form-data`
+
+**Fields:**
+- `foto` (file) — JPG/PNG/WebP, máx. 15MB
+- `posicao` (string) — `frente | costas | lado_dir | lado_esq`
+
+**Response 201:**
+```json
+{
+  "id": "uuid",
+  "url": "https://coach-system-uploads.s3.us-east-1.amazonaws.com/alunos/fotos/...",
+  "s3_key": "alunos/fotos/{uuid}.jpg",
+  "posicao": "frente",
+  "data_foto": "date",
+  "created_at": "timestamp"
+}
+```
+
+**Erros:**
+- `400` — arquivo ausente, tipo inválido ou tamanho excedido
+- `401`, `403`
 
 ---
 

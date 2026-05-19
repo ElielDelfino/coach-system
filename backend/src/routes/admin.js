@@ -1,5 +1,10 @@
 const router = require('express').Router();
 const c = require('../controllers/adminController');
+const { uploadThumbExerc, uploadVideoExerc, uploadFotoAlimento } = require('../middlewares/upload');
+
+// ─── dashboard ────────────────────────────────────────────────────────────────
+router.get('/dashboard/evolucao', c.dashboardEvolucao);
+router.get('/dashboard/resumo', c.dashboardResumo);
 
 // ─── alunos ───────────────────────────────────────────────────────────────────
 router.get('/alunos', c.listAlunos);
@@ -36,6 +41,8 @@ router.get('/exercicios', c.listExercicios);
 router.post('/exercicios', c.createExercicio);
 router.get('/exercicios/:id', c.getExercicio);
 router.put('/exercicios/:id', c.updateExercicio);
+router.put('/exercicios/:id/thumbnail', uploadThumbExerc, c.uploadThumbExercicio);
+router.put('/exercicios/:id/video', uploadVideoExerc, c.uploadVideoExercicio);
 router.patch('/exercicios/:id/ativar', c.ativarExercicio);
 router.patch('/exercicios/:id/desativar', c.desativarExercicio);
 
@@ -44,6 +51,7 @@ router.get('/alimentos', c.listAlimentos);
 router.post('/alimentos', c.createAlimento);
 router.get('/alimentos/:id', c.getAlimento);
 router.put('/alimentos/:id', c.updateAlimento);
+router.put('/alimentos/:id/foto', uploadFotoAlimento, c.uploadFotoAlimento);
 router.patch('/alimentos/:id/ativar', c.ativarAlimento);
 router.patch('/alimentos/:id/desativar', c.desativarAlimento);
 

@@ -7,6 +7,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import StatusBadge from '../../components/StatusBadge';
+import { SkeletonTabela } from '../../components/ui/Skeleton';
+import EmptyState from '../../components/ui/EmptyState';
 
 const LIMIT = 20;
 
@@ -64,8 +66,8 @@ export default function Alunos() {
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
   return (
-    <div className="p-8 space-y-6 max-w-7xl">
-      <header className="flex items-end justify-between gap-4">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6 max-w-7xl">
+      <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="text-section-label">Cadastro</div>
           <h1 className="text-page-title mt-1">Alunos</h1>
@@ -81,7 +83,7 @@ export default function Alunos() {
             onChange={(e) => setBusca(e.target.value)}
           />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 md:overflow-visible md:mx-0 md:px-0">
           {[
             { v: 'todos', l: 'Todos' },
             { v: 'em_dia', l: 'Em dia' },
@@ -93,7 +95,7 @@ export default function Alunos() {
               key={opt.v}
               onClick={() => { setFiltroStatus(opt.v); setPage(1); }}
               className={
-                'px-3 py-1.5 rounded-md text-xs uppercase tracking-widest font-bold transition-colors ' +
+                'px-3 py-1.5 rounded-md text-xs uppercase tracking-widest font-bold transition-colors whitespace-nowrap shrink-0 ' +
                 (filtroStatus === opt.v
                   ? 'bg-brand text-white'
                   : 'bg-surface-elevated text-zinc-400 hover:text-white border border-surface-border')
@@ -105,49 +107,110 @@ export default function Alunos() {
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-section-label border-b border-surface-border">
-              <th className="text-left px-5 py-3 font-semibold">Aluno</th>
-              <th className="text-left px-5 py-3 font-semibold">E-mail</th>
-              <th className="text-left px-5 py-3 font-semibold">Telefone</th>
-              <th className="text-left px-5 py-3 font-semibold">Status</th>
-              <th className="text-left px-5 py-3 font-semibold">Tolerância</th>
-              <th className="text-right px-5 py-3 font-semibold">Ação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr><td colSpan={6} className="text-center text-zinc-500 py-10">Carregando…</td></tr>
-            )}
-            {!loading && filtered.length === 0 && (
-              <tr><td colSpan={6} className="text-center text-zinc-500 py-10">Nenhum aluno encontrado.</td></tr>
-            )}
-            {filtered.map((a) => (
-              <tr key={a.id} className="border-b border-surface-border text-zinc-300 hover:bg-surface-elevated transition-colors">
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-xs font-black text-white">
-                      {iniciais(a.nome)}
-                    </div>
-                    <span className="font-semibold text-white">{a.nome}</span>
+      {loading ? (
+        <Card className="overflow-hidden">
+          <SkeletonTabela linhas={8} colunas={6} />
+        </Card>
+      ) : filtered.length === 0 ? (
+        busca ? (
+          <EmptyState
+            icone="🔍"
+            titulo="Nenhum aluno encontrado"
+            descricao={`Nenhum resultado para "${busca}".`}
+            acao={
+              <button
+                onClick={() => setBusca('')}
+                className="text-xs text-brand border border-brand/40 px-3 py-1 rounded hover:bg-brand/10 font-bold"
+              >
+                Limpar busca
+              </button>
+            }
+          />
+        ) : (
+          <EmptyState
+            icone="👥"
+            titulo="Nenhum aluno cadastrado"
+            descricao="Clique em '+ Novo aluno' para começar."
+          />
+        )
+      ) : (
+      <>
+        {/* Desktop: tabela */}
+        <Card className="hidden md:block overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-section-label border-b border-surface-border">
+                  <th className="text-left px-5 py-3 font-semibold">Aluno</th>
+                  <th className="text-left px-5 py-3 font-semibold">E-mail</th>
+                  <th className="text-left px-5 py-3 font-semibold">Telefone</th>
+                  <th className="text-left px-5 py-3 font-semibold">Status</th>
+                  <th className="text-left px-5 py-3 font-semibold">Tolerância</th>
+                  <th className="text-right px-5 py-3 font-semibold">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((a) => (
+                  <tr key={a.id} className="border-b border-surface-border text-zinc-300 hover:bg-surface-elevated transition-colors">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-xs font-black text-white">
+                          {iniciais(a.nome)}
+                        </div>
+                        <span className="font-semibold text-white">{a.nome}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-zinc-400">{a.email}</td>
+                    <td className="px-5 py-3 text-zinc-500 tabular-nums">{a.telefone || '—'}</td>
+                    <td className="px-5 py-3"><StatusBadge status={a.status} /></td>
+                    <td className="px-5 py-3 text-zinc-400 tabular-nums">{a.dias_tolerancia ?? 7} dias</td>
+                    <td className="px-5 py-3 text-right">
+                      <Link to={`/admin/alunos/${a.id}`} className="text-xs uppercase tracking-widest font-bold text-brand hover:text-brand-dark">
+                        Ver
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* Mobile: cards */}
+        <div className="md:hidden space-y-3">
+          {filtered.map((a) => (
+            <Link
+              key={a.id}
+              to={`/admin/alunos/${a.id}`}
+              className="block bg-surface-card border border-surface-border rounded-xl p-4"
+            >
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center text-xs font-black text-white shrink-0">
+                    {iniciais(a.nome)}
                   </div>
-                </td>
-                <td className="px-5 py-3 text-zinc-400">{a.email}</td>
-                <td className="px-5 py-3 text-zinc-500 tabular-nums">{a.telefone || '—'}</td>
-                <td className="px-5 py-3"><StatusBadge status={a.status} /></td>
-                <td className="px-5 py-3 text-zinc-400 tabular-nums">{a.dias_tolerancia ?? 7} dias</td>
-                <td className="px-5 py-3 text-right">
-                  <Link to={`/admin/alunos/${a.id}`} className="text-xs uppercase tracking-widest font-bold text-brand hover:text-brand-dark">
-                    Ver
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+                  <div className="min-w-0">
+                    <p className="text-white font-bold text-sm truncate">{a.nome}</p>
+                    <p className="text-zinc-500 text-xs truncate">{a.email}</p>
+                  </div>
+                </div>
+                <StatusBadge status={a.status} />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="text-zinc-600 uppercase tracking-widest">Telefone</p>
+                  <p className="text-zinc-300 tabular-nums">{a.telefone || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-zinc-600 uppercase tracking-widest">Tolerância</p>
+                  <p className="text-zinc-300 tabular-nums">{a.dias_tolerancia ?? 7} dias</p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </>
+      )}
 
       <div className="flex items-center justify-between text-xs">
         <div className="text-zinc-500 uppercase tracking-widest">
@@ -225,7 +288,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
         <Field label="Nome completo *">
           <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} autoFocus />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="E-mail *">
             <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
           </Field>
@@ -233,7 +296,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
             <Input type="password" value={form.senha} onChange={(e) => set('senha', e.target.value)} />
           </Field>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Field label="Telefone">
             <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} />
           </Field>
@@ -244,7 +307,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
             <select
               value={form.sexo}
               onChange={(e) => set('sexo', e.target.value)}
-              className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             >
               <option value="">—</option>
               <option value="M">Masculino</option>
@@ -256,7 +319,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
         <Field label="Objetivo">
           <Input value={form.objetivo} onChange={(e) => set('objetivo', e.target.value)} placeholder="Ex: hipertrofia, emagrecimento…" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Dias de tolerância para inadimplência">
             <Input
               type="number"
@@ -279,7 +342,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
             value={form.restricoes}
             onChange={(e) => set('restricoes', e.target.value)}
             rows={2}
-            className="w-full bg-surface-input border border-surface-border text-white placeholder:text-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand resize-none"
+            className="w-full bg-surface-input border border-surface-border text-white placeholder:text-zinc-600 rounded-md px-3 py-2 text-base md:text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand resize-none"
           />
         </Field>
         <Field label="Lesões">
@@ -287,7 +350,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
             value={form.lesoes}
             onChange={(e) => set('lesoes', e.target.value)}
             rows={2}
-            className="w-full bg-surface-input border border-surface-border text-white placeholder:text-zinc-600 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand resize-none"
+            className="w-full bg-surface-input border border-surface-border text-white placeholder:text-zinc-600 rounded-md px-3 py-2 text-base md:text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand resize-none"
           />
         </Field>
       </form>

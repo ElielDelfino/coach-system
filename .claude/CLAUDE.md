@@ -70,7 +70,7 @@
 ## Próximas tarefas / estado atual
 
 _Atualize isso quando iniciar novo chat:_
-- Última coisa que fizemos: [@prompts/prompt_correcoes_v2.md] — 5 correções (fotos invertidas, medidas completas, download PDF, foto alimentos, módulo Cardio removido)
-- Em progresso: [o que está sendo feito]
-- Bloqueadores: [se houver]
-- Próximo passo: [validar fluxo no Docker + aplicar migrações M008/M009 em prod]
+- Última coisa que fizemos: [@prompts/prompt_upload_s3_v2.md] — upload S3 real (AWS) para fotos de alunos, thumbs/vídeos de exercícios e fotos de alimentos + suporte a vídeo do YouTube em exercicios; novas migrações M006/M007/M010
+- Em progresso: aguardando rebuild dos containers e teste em produção
+- Bloqueadores: nenhum (.env e docker-compose.yml já têm as variáveis AWS_*)
+- Próximo passo: rebuild backend+frontend, validar upload de foto de aluno, upload de thumb/vídeo de exercício, embed do YouTube e upload de foto de alimento

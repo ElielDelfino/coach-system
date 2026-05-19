@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import {
@@ -53,13 +53,48 @@ export default function ProtocoloBuilder() {
   useEffect(() => { loadProtocolo(); }, [loadProtocolo]);
 
   if (loading || !protocolo) {
-    return <div className="p-8 text-section-label animate-pulse">Carregando…</div>;
+    return <div className="p-4 md:p-8 text-section-label animate-pulse">Carregando…</div>;
   }
 
   return (
-    <div className="flex h-screen">
-      {/* Coluna esquerda — módulos */}
-      <aside className="w-60 shrink-0 bg-surface-card border-r border-surface-border flex flex-col">
+    <div className="md:flex md:h-screen">
+      {/* Mobile: header + tabs horizontais */}
+      <div className="md:hidden bg-surface-card border-b border-surface-border">
+        <div className="px-4 py-3">
+          <Link to={`/admin/alunos/${alunoId}`} className="text-xs uppercase tracking-widest text-zinc-500 hover:text-brand">
+            ← Voltar ao aluno
+          </Link>
+          <h1 className="text-base font-black text-white mt-2 truncate">{protocolo.nome}</h1>
+          <div className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">{protocolo.fase}</div>
+        </div>
+        <div className="overflow-x-auto border-t border-surface-border">
+          <div className="flex gap-1 px-3 py-2 min-w-max">
+            {MODULOS.map((m) => {
+              const enabled = !m.flag || protocolo[m.flag];
+              return (
+                <button
+                  key={m.id}
+                  disabled={!enabled}
+                  onClick={() => setModulo(m.id)}
+                  className={clsx(
+                    'text-[11px] uppercase tracking-widest px-3 py-2 rounded-lg whitespace-nowrap font-bold',
+                    modulo === m.id
+                      ? 'bg-brand text-white'
+                      : enabled
+                      ? 'text-zinc-400 hover:text-zinc-200'
+                      : 'text-zinc-700 cursor-not-allowed'
+                  )}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop: sidebar lateral */}
+      <aside className="hidden md:flex w-60 shrink-0 bg-surface-card border-r border-surface-border flex-col">
         <div className="px-5 py-4 border-b border-surface-border">
           <Link to={`/admin/alunos/${alunoId}`} className="text-xs uppercase tracking-widest text-zinc-500 hover:text-brand">
             ← Voltar ao aluno
@@ -94,7 +129,7 @@ export default function ProtocoloBuilder() {
       </aside>
 
       {/* Conteúdo central */}
-      <main className="flex-1 min-w-0 overflow-y-auto p-6">
+      <main className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6">
         {modulo === 'alimentar' && <ModuloAlimentar protocoloId={id} />}
         {modulo === 'treino' && <ModuloTreino protocoloId={id} />}
         {modulo === 'suplementacao' && <ModuloSuplementacao protocoloId={id} />}
@@ -113,6 +148,7 @@ function ModuloAlimentar({ protocoloId }) {
   const [openNova, setOpenNova] = useState(false);
   const [openDuplicar, setOpenDuplicar] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [resumoAberto, setResumoAberto] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -149,8 +185,34 @@ function ModuloAlimentar({ protocoloId }) {
     } catch (err) { toast.error(errorMessage(err)); }
   }
 
+  const resumoContent = (
+    <>
+      <div className="text-section-label">Total do protocolo</div>
+      <div className="mt-3">
+        <MacroBar
+          kcal={totalProto.kcal}
+          prot={totalProto.prot}
+          carb={totalProto.carb}
+          gord={totalProto.gord}
+        />
+      </div>
+      <div className="border-t border-surface-border mt-5 pt-4 space-y-2">
+        <div className="text-section-label">Por refeição</div>
+        {refeicoes.map((r) => (
+          <div key={r.id} className="flex items-baseline justify-between text-sm">
+            <span className="text-zinc-400 truncate">{r.numero_refeicao}. {r.nome}</span>
+            <span className="text-white font-bold tabular-nums shrink-0">{fmt(r.total_kcal)} kcal</span>
+          </div>
+        ))}
+        {refeicoes.length === 0 && (
+          <div className="text-xs text-zinc-600">Nenhuma refeição.</div>
+        )}
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex gap-6 h-full">
+    <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:h-full">
       <div className="flex-1 min-w-0 space-y-4">
         <header>
           <div className="text-section-label">Módulo</div>
@@ -196,32 +258,37 @@ function ModuloAlimentar({ protocoloId }) {
         )}
       </div>
 
-      {/* Coluna direita — resumo nutricional */}
-      <aside className="w-72 shrink-0 space-y-4">
+      {/* Desktop: coluna direita — resumo nutricional */}
+      <aside className="hidden md:block w-72 shrink-0 space-y-4">
         <Card className="p-5 sticky top-0">
-          <div className="text-section-label">Total do protocolo</div>
-          <div className="mt-3">
-            <MacroBar
-              kcal={totalProto.kcal}
-              prot={totalProto.prot}
-              carb={totalProto.carb}
-              gord={totalProto.gord}
-            />
-          </div>
-          <div className="border-t border-surface-border mt-5 pt-4 space-y-2">
-            <div className="text-section-label">Por refeição</div>
-            {refeicoes.map((r) => (
-              <div key={r.id} className="flex items-baseline justify-between text-sm">
-                <span className="text-zinc-400 truncate">{r.numero_refeicao}. {r.nome}</span>
-                <span className="text-white font-bold tabular-nums shrink-0">{fmt(r.total_kcal)} kcal</span>
-              </div>
-            ))}
-            {refeicoes.length === 0 && (
-              <div className="text-xs text-zinc-600">Nenhuma refeição.</div>
-            )}
-          </div>
+          {resumoContent}
         </Card>
       </aside>
+
+      {/* Mobile: botão flutuante de resumo */}
+      <button
+        type="button"
+        onClick={() => setResumoAberto(true)}
+        className="md:hidden fixed bottom-4 right-4 z-20 bg-brand text-white rounded-full px-4 py-3 text-xs font-black shadow-lg uppercase tracking-widest"
+      >
+        Resumo · {fmt(totalProto.kcal)} kcal
+      </button>
+
+      {resumoAberto && (
+        <div className="md:hidden fixed inset-0 z-30">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setResumoAberto(false)} />
+          <div className="absolute inset-x-0 bottom-0 bg-surface-card border-t border-surface-border rounded-t-2xl p-5 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-center pb-3">
+              <div className="w-10 h-1 bg-zinc-700 rounded-full" />
+            </div>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-white font-black text-sm uppercase tracking-widest">Resumo nutricional</p>
+              <button onClick={() => setResumoAberto(false)} className="text-zinc-500 hover:text-white text-lg">✕</button>
+            </div>
+            {resumoContent}
+          </div>
+        </div>
+      )}
 
       <NovaRefeicaoModal
         open={openNova}
@@ -488,15 +555,16 @@ function SubstitutosPanel({ item, refeicaoId, onChange }) {
   const [selected, setSelected] = useState(null);
   const [qtd, setQtd] = useState('');
   const [showDrop, setShowDrop] = useState(false);
+  const qtdRef = useRef(null);
 
   useEffect(() => {
-    if (selected || !busca.trim()) {
+    if (selected || busca.trim().length < 2) {
       setResultados([]);
       return;
     }
     const t = setTimeout(async () => {
       try {
-        const res = await api.get('/admin/alimentos', { params: { busca } });
+        const res = await api.get('/admin/alimentos', { params: { busca, limit: 8 } });
         setResultados(res.data.data || []);
         setShowDrop(true);
       } catch (err) { toast.error(errorMessage(err)); }
@@ -509,6 +577,8 @@ function SubstitutosPanel({ item, refeicaoId, onChange }) {
     setBusca(a.nome);
     if (!qtd) setQtd(a.quantidade_base);
     setShowDrop(false);
+    setResultados([]);
+    setTimeout(() => qtdRef.current?.focus(), 50);
   }
 
   function limpar() {
@@ -561,23 +631,24 @@ function SubstitutosPanel({ item, refeicaoId, onChange }) {
         <div className="text-xs text-zinc-600">Nenhum substituto cadastrado.</div>
       )}
 
-      <div className="flex items-center gap-2 pt-2 mt-1 border-t border-surface-border">
-        <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold">OU</span>
-        <div className="relative flex-1">
+      <div className="flex items-center gap-2 pt-2 mt-1 border-t border-surface-border flex-wrap">
+        <span className="text-zinc-500 text-[10px] uppercase tracking-widest font-bold shrink-0">OU</span>
+        <div className="relative flex-1 min-w-[180px]">
           <Input
-            placeholder="Buscar alimento…"
+            placeholder="Buscar alimento substituto…"
             value={busca}
             onChange={(e) => { setBusca(e.target.value); setSelected(null); }}
             onFocus={() => { if (resultados.length > 0) setShowDrop(true); }}
-            className="py-1 text-xs"
+            className="py-1 text-xs w-full"
           />
           {showDrop && resultados.length > 0 && !selected && (
-            <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-surface-card border border-surface-border rounded-md shadow-lg">
+            <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-surface-card border border-surface-border rounded-md shadow-xl">
               {resultados.map((a) => (
                 <button
                   key={a.id}
-                  onClick={() => escolher(a)}
-                  className="w-full text-left px-3 py-2 text-xs border-b border-surface-border last:border-b-0 hover:bg-surface-elevated"
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); escolher(a); }}
+                  className="w-full text-left px-3 py-2 text-xs border-b border-surface-border last:border-b-0 hover:bg-surface-elevated transition-colors"
                 >
                   <div className="font-semibold text-white">{a.nome}</div>
                   <div className="text-[10px] text-zinc-500">
@@ -589,16 +660,19 @@ function SubstitutosPanel({ item, refeicaoId, onChange }) {
           )}
         </div>
         <Input
+          ref={qtdRef}
           type="number"
           placeholder="g"
-          className="w-20 text-xs py-1 text-right tabular-nums"
+          min="1"
+          className="w-20 shrink-0 text-xs py-1 text-right tabular-nums"
           value={qtd}
           onChange={(e) => setQtd(e.target.value)}
         />
         <button
+          type="button"
           onClick={adicionar}
           disabled={!selected || !qtd}
-          className="text-brand text-xs font-bold uppercase tracking-widest hover:text-brand-dark disabled:text-zinc-700 disabled:cursor-not-allowed shrink-0"
+          className="shrink-0 text-brand text-xs font-bold uppercase tracking-widest hover:text-brand-dark disabled:text-zinc-700 disabled:cursor-not-allowed"
         >
           + Adicionar
         </button>
