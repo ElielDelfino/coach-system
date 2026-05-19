@@ -25,9 +25,20 @@ docker build --no-cache -f docker/backend.Dockerfile  -t coach-backend:latest  .
 echo "==> Deploy da stack '$STACK_NAME' (lendo $COMPOSE_FILE + envs)"
 docker stack deploy \
   --with-registry-auth \
-  --resolve-image=changed \
+  --resolve-image=never \
   -c "$COMPOSE_FILE" \
   "$STACK_NAME"
+
+# Imagens locais (sem registry): stack deploy não detecta mudança de digest.
+# Força update apontando para a tag :latest recém-construída.
+echo "==> Forçando update dos serviços com imagem local"
+for svc in coach_backend coach_frontend; do
+  image="${svc#coach_}"
+  if docker service inspect "$svc" >/dev/null 2>&1; then
+    docker service update --force --image "coach-${image}:latest" "$svc" >/dev/null
+    echo "    -> $svc atualizado para coach-${image}:latest"
+  fi
+done
 
 echo "==> Aguardando convergência dos serviços..."
 for svc in $(docker stack services --format '{{.Name}}' "$STACK_NAME"); do
