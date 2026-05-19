@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../context/AuthContext';
@@ -16,9 +16,8 @@ export default function Navbar() {
   const [menuAberto, setMenuAberto] = useState(false);
   const location = useLocation();
 
-  // fecha o drawer sempre que a rota muda
-  // (uso simples, sem useEffect: comparação por chave)
-  const fecharMenu = () => setMenuAberto(false);
+  const fecharMenu = useCallback(() => setMenuAberto(false), []);
+  const abrirMenu  = useCallback(() => setMenuAberto(true),  []);
 
   return (
     <>
@@ -26,7 +25,7 @@ export default function Navbar() {
       <div className="md:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-surface-card border-b border-surface-border">
         <button
           type="button"
-          onClick={() => setMenuAberto(true)}
+          onClick={abrirMenu}
           className="text-zinc-400 hover:text-white p-1 min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Abrir menu"
         >
@@ -103,7 +102,7 @@ export default function Navbar() {
           <div className="text-[10px] text-zinc-600 uppercase tracking-widest">Sessão</div>
           <div className="text-sm text-white truncate">{user?.email}</div>
           <button
-            onClick={() => { fecharMenu(); logout(); }}
+            onClick={() => { fecharMenu(); void logout(); }}
             className="mt-3 text-[11px] text-zinc-500 hover:text-brand uppercase tracking-widest font-bold transition-colors"
           >
             Sair

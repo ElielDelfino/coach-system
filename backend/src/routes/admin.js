@@ -20,6 +20,7 @@ router.get('/alunos/:id/medidas/:medidaId', c.getMedida);
 router.put('/alunos/:id/medidas/:medidaId', c.updateMedida);
 router.delete('/alunos/:id/medidas/:medidaId', c.deleteMedida);
 router.get('/alunos/:id/fotos', c.listFotos);
+router.patch('/alunos/:id/liberar-fotos', c.liberarFotos);
 router.delete('/alunos/:alunoId/fotos/:fotoId', c.deleteFoto);
 router.get('/alunos/:id/pagamentos', c.listPagamentosAluno);
 router.post('/alunos/:id/pagamentos', c.createPagamento);
@@ -65,6 +66,7 @@ router.patch('/cardio/:id/desativar', c.desativarCardio);
 // ─── protocolos ───────────────────────────────────────────────────────────────
 router.get('/protocolos/:id', c.getProtocolo);
 router.put('/protocolos/:id', c.updateProtocolo);
+router.delete('/protocolos/:id', c.deleteProtocolo);
 router.patch('/protocolos/:id/ativar', c.ativarProtocolo);
 router.patch('/protocolos/:id/desativar', c.desativarProtocolo);
 router.get('/protocolos/:id/refeicoes', c.listRefeicoes);
@@ -91,6 +93,7 @@ router.delete('/refeicoes/:refeicaoId/itens/:itemId/substitutos/:substitutoId', 
 // ─── treinos ──────────────────────────────────────────────────────────────────
 router.put('/treinos/:id', c.updateTreino);
 router.delete('/treinos/:id', c.deleteTreino);
+router.post('/treinos/:id/duplicar', c.duplicarTreino);
 router.post('/treinos/:id/exercicios', c.createTreinoExercicio);
 // reordenar DEVE vir antes de /:itemId para não conflitar com método PATCH
 router.patch('/treinos/:treinoId/exercicios/reordenar', c.reordenarTreinoExercicios);

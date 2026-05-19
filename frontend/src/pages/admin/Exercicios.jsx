@@ -87,34 +87,25 @@ export default function Exercicios() {
       ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {data.map((ex) => (
-          <Card key={ex.id} className="overflow-hidden cursor-pointer hover:bg-surface-elevated transition-colors" onClick={() => setEditing(ex.id)}>
-            <div className="aspect-video bg-surface-input flex items-center justify-center overflow-hidden">
-              {ex.thumbnail_url ? (
-                <img src={ex.thumbnail_url} alt={ex.nome} className="w-full h-full object-cover" />
-              ) : (
-                <div className="text-zinc-700 text-xs uppercase tracking-widest">Sem mídia</div>
-              )}
+          <Card key={ex.id} className="p-4 cursor-pointer hover:bg-surface-elevated transition-colors" onClick={() => setEditing(ex.id)}>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-bold text-white truncate">{ex.nome}</h3>
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleAtivo(ex); }}
+                className={
+                  'shrink-0 text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border ' +
+                  (ex.ativo
+                    ? 'bg-green-950 border-green-900 text-green-400'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-500')
+                }
+              >
+                {ex.ativo ? 'Ativo' : 'Inativo'}
+              </button>
             </div>
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-bold text-white truncate">{ex.nome}</h3>
-                <button
-                  onClick={(e) => { e.stopPropagation(); toggleAtivo(ex); }}
-                  className={
-                    'shrink-0 text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border ' +
-                    (ex.ativo
-                      ? 'bg-green-950 border-green-900 text-green-400'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-500')
-                  }
-                >
-                  {ex.ativo ? 'Ativo' : 'Inativo'}
-                </button>
-              </div>
-              <div className="text-xs text-zinc-500 mt-1">{ex.grupo_muscular}</div>
-              <div className="flex gap-2 mt-3 text-[10px] uppercase tracking-widest text-zinc-600">
-                {ex.equipamento && <span>· {ex.equipamento}</span>}
-                {ex.nivel && <span>· {ex.nivel}</span>}
-              </div>
+            <div className="text-xs text-zinc-500 mt-1">{ex.grupo_muscular}</div>
+            <div className="flex gap-2 mt-3 text-[10px] uppercase tracking-widest text-zinc-600">
+              {ex.equipamento && <span>· {ex.equipamento}</span>}
+              {ex.nivel && <span>· {ex.nivel}</span>}
             </div>
           </Card>
         ))}
@@ -158,7 +149,7 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
     if (!exId) {
       setForm({
         nome: '', grupo_muscular: '', equipamento: '', nivel: 'intermediario',
-        video_url: '', thumbnail_url: '', video_youtube_url: '', video_tipo: 'youtube',
+        video_url: '', video_youtube_url: '', video_tipo: 'youtube',
         observacoes_tecnicas: '', execucao_correta: '', execucao_errada: '',
         descanso_padrao_seg: 60, series_recomendadas: 4, repeticoes_recomendadas: '8-12', cadencia: '',
       });
@@ -214,24 +205,6 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
     }
   }
 
-  async function uploadThumbnail(file) {
-    if (!isEdit) {
-      toast.error('Salve o exercício antes de enviar a thumbnail.');
-      return;
-    }
-    const fd = new FormData();
-    fd.append('thumbnail', file);
-    try {
-      const res = await api.put(`/admin/exercicios/${exId}/thumbnail`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setForm((f) => ({ ...f, thumbnail_url: res.data.thumbnail_url, thumbnail_s3_key: res.data.thumbnail_s3_key }));
-      toast.success('Thumbnail enviada.');
-    } catch (err) {
-      toast.error(errorMessage(err));
-    }
-  }
-
   async function uploadVideoS3(file) {
     if (!isEdit) {
       toast.error('Salve o exercício antes de enviar o vídeo.');
@@ -266,11 +239,11 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
     >
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Nome *"><Input value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></Field>
-          <Field label="Grupo muscular *"><Input value={form.grupo_muscular || ''} onChange={(e) => setForm({ ...form, grupo_muscular: e.target.value })} /></Field>
-          <Field label="Equipamento"><Input value={form.equipamento || ''} onChange={(e) => setForm({ ...form, equipamento: e.target.value })} /></Field>
+          <Field label="Nome *"><Input value={form.nome || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, nome: v })); }} /></Field>
+          <Field label="Grupo muscular *"><Input value={form.grupo_muscular || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, grupo_muscular: v })); }} /></Field>
+          <Field label="Equipamento"><Input value={form.equipamento || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, equipamento: v })); }} /></Field>
           <Field label="Nível">
-            <select value={form.nivel || 'intermediario'} onChange={(e) => setForm({ ...form, nivel: e.target.value })}
+            <select value={form.nivel || 'intermediario'} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, nivel: v })); }}
               className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm">
               <option value="iniciante">Iniciante</option>
               <option value="intermediario">Intermediário</option>
@@ -280,24 +253,10 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Field label="Séries recom."><Input type="number" value={form.series_recomendadas ?? ''} onChange={(e) => setForm({ ...form, series_recomendadas: e.target.value })} /></Field>
-          <Field label="Reps. recom."><Input value={form.repeticoes_recomendadas ?? ''} onChange={(e) => setForm({ ...form, repeticoes_recomendadas: e.target.value })} placeholder="8-12" /></Field>
-          <Field label="Descanso (s)"><Input type="number" value={form.descanso_padrao_seg ?? ''} onChange={(e) => setForm({ ...form, descanso_padrao_seg: e.target.value })} /></Field>
-          <Field label="Cadência"><Input value={form.cadencia ?? ''} onChange={(e) => setForm({ ...form, cadencia: e.target.value })} placeholder="2-1-2" /></Field>
-        </div>
-
-        <div>
-          <div className="text-section-label mb-2">Thumbnail</div>
-          <ImageUpload
-            label="Selecione a thumbnail (JPG/PNG/WebP — máx. 15MB)"
-            accept="image/jpeg,image/png,image/webp"
-            maxMB={15}
-            preview={form.thumbnail_url}
-            onUpload={uploadThumbnail}
-          />
-          {!isEdit && (
-            <p className="text-xs text-zinc-600 mt-2">Salve o exercício primeiro para habilitar o upload.</p>
-          )}
+          <Field label="Séries recom."><Input type="number" value={form.series_recomendadas ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, series_recomendadas: v })); }} /></Field>
+          <Field label="Reps. recom."><Input value={form.repeticoes_recomendadas ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, repeticoes_recomendadas: v })); }} placeholder="8-12" /></Field>
+          <Field label="Descanso (s)"><Input type="number" value={form.descanso_padrao_seg ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, descanso_padrao_seg: v })); }} /></Field>
+          <Field label="Cadência"><Input value={form.cadencia ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, cadencia: v })); }} placeholder="2-1-2" /></Field>
         </div>
 
         <div>
@@ -330,7 +289,7 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
               <Input
                 placeholder="https://www.youtube.com/watch?v=..."
                 value={form.video_youtube_url || ''}
-                onChange={(e) => setForm({ ...form, video_youtube_url: e.target.value })}
+                onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, video_youtube_url: v })); }}
               />
               {embedUrl && (
                 <iframe
@@ -364,15 +323,15 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
 
         <Field label="Observações técnicas">
           <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm resize-none"
-            value={form.observacoes_tecnicas || ''} onChange={(e) => setForm({ ...form, observacoes_tecnicas: e.target.value })} />
+            value={form.observacoes_tecnicas || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, observacoes_tecnicas: v })); }} />
         </Field>
         <Field label="Execução correta">
           <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm resize-none"
-            value={form.execucao_correta || ''} onChange={(e) => setForm({ ...form, execucao_correta: e.target.value })} />
+            value={form.execucao_correta || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, execucao_correta: v })); }} />
         </Field>
         <Field label="Execução errada">
           <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm resize-none"
-            value={form.execucao_errada || ''} onChange={(e) => setForm({ ...form, execucao_errada: e.target.value })} />
+            value={form.execucao_errada || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, execucao_errada: v })); }} />
         </Field>
       </div>
     </Modal>

@@ -121,26 +121,28 @@ export default function AlunoDetalhe() {
         </div>
       </header>
 
-      <nav className="flex border-b border-surface-border overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={clsx(
-              'px-4 md:px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px whitespace-nowrap shrink-0',
-              tab === t.id
-                ? 'text-white border-b-2 border-brand'
-                : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-transparent'
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      <nav className="border-b border-surface-border -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex flex-wrap">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={clsx(
+                'px-4 md:px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px whitespace-nowrap',
+                tab === t.id
+                  ? 'text-white border-b-2 border-brand'
+                  : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-transparent'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </nav>
 
       {tab === 'perfil' && <TabPerfil aluno={aluno} onReload={load} />}
       {tab === 'medidas' && <TabMedidas alunoId={id} />}
-      {tab === 'fotos' && <TabFotos alunoId={id} />}
+      {tab === 'fotos' && <TabFotos alunoId={id} aluno={aluno} onReload={load} />}
       {tab === 'faturas' && <TabFaturas alunoId={id} alunoTolerancia={aluno.dias_tolerancia ?? 7} onReload={load} />}
       {tab === 'protocolos' && <TabProtocolos alunoId={id} />}
     </div>
@@ -156,7 +158,12 @@ function TabPerfil({ aluno, onReload }) {
   const [saving, setSaving] = useState(false);
   const [senhaModalOpen, setSenhaModalOpen] = useState(false);
 
-  useEffect(() => setForm(aluno), [aluno]);
+  // Só sincroniza o form quando o aluno for recarregado fora do modo edição.
+  // Impede que um reload externo (ex: toast disparando um re-fetch) apague o que
+  // o usuário está digitando.
+  useEffect(() => {
+    if (!editing) setForm(aluno);
+  }, [aluno, editing]);
 
   async function salvar() {
     setSaving(true);
@@ -203,13 +210,13 @@ function TabPerfil({ aluno, onReload }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {editing ? (
             <>
-              <Field label="Nome"><Input value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></Field>
-              <Field label="Telefone"><Input value={form.telefone || ''} onChange={(e) => setForm({ ...form, telefone: e.target.value })} /></Field>
-              <Field label="Nascimento"><Input type="date" value={(form.data_nascimento || '').slice(0, 10)} onChange={(e) => setForm({ ...form, data_nascimento: e.target.value })} /></Field>
+              <Field label="Nome"><Input value={form.nome || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, nome: v })); }} /></Field>
+              <Field label="Telefone"><Input value={form.telefone || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, telefone: v })); }} /></Field>
+              <Field label="Nascimento"><Input type="date" value={(form.data_nascimento || '').slice(0, 10)} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, data_nascimento: v })); }} /></Field>
               <Field label="Sexo">
                 <select
                   value={form.sexo || ''}
-                  onChange={(e) => setForm({ ...form, sexo: e.target.value })}
+                  onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, sexo: v })); }}
                   className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm"
                 >
                   <option value="">—</option>
@@ -218,22 +225,22 @@ function TabPerfil({ aluno, onReload }) {
                   <option value="outro">Outro</option>
                 </select>
               </Field>
-              <Field label="Objetivo"><Input value={form.objetivo || ''} onChange={(e) => setForm({ ...form, objetivo: e.target.value })} /></Field>
+              <Field label="Objetivo"><Input value={form.objetivo || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, objetivo: v })); }} /></Field>
               <Field label="Tolerância (dias)">
-                <Input type="number" min={0} value={form.dias_tolerancia ?? 7} onChange={(e) => setForm({ ...form, dias_tolerancia: Number(e.target.value) })} />
+                <Input type="number" min={0} value={form.dias_tolerancia ?? 7} onChange={(e) => { const v = Number(e.target.value); setForm((f) => ({ ...f, dias_tolerancia: v })); }} />
               </Field>
               <Field label="Periodicidade do plano (dias)">
-                <Input type="number" min={1} value={form.periodicidade_dias ?? 30} onChange={(e) => setForm({ ...form, periodicidade_dias: Number(e.target.value) })} />
+                <Input type="number" min={1} value={form.periodicidade_dias ?? 30} onChange={(e) => { const v = Number(e.target.value); setForm((f) => ({ ...f, periodicidade_dias: v })); }} />
               </Field>
               <div className="col-span-2"><Field label="Restrições">
                 <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm resize-none"
-                  value={form.restricoes || ''} onChange={(e) => setForm({ ...form, restricoes: e.target.value })} /></Field></div>
+                  value={form.restricoes || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, restricoes: v })); }} /></Field></div>
               <div className="col-span-2"><Field label="Lesões">
                 <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm resize-none"
-                  value={form.lesoes || ''} onChange={(e) => setForm({ ...form, lesoes: e.target.value })} /></Field></div>
+                  value={form.lesoes || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, lesoes: v })); }} /></Field></div>
               <div className="col-span-2"><Field label="Observações">
                 <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm resize-none"
-                  value={form.observacoes || ''} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} /></Field></div>
+                  value={form.observacoes || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, observacoes: v })); }} /></Field></div>
             </>
           ) : (
             <>
@@ -493,7 +500,9 @@ function TabMedidas({ alunoId }) {
       {ordenadas.length > 0 && (
         <section className="space-y-3">
           <div className="text-section-label">Histórico</div>
-          <Card className="overflow-hidden">
+
+          {/* Desktop: tabela */}
+          <Card className="hidden md:block overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[640px]">
                 <thead>
@@ -524,6 +533,57 @@ function TabMedidas({ alunoId }) {
               </table>
             </div>
           </Card>
+
+          {/* Mobile: cards */}
+          <div className="md:hidden space-y-3">
+            {ordenadas.map((m) => {
+              const expandida = expandidaId === m.id;
+              return (
+                <div key={m.id} className="bg-surface-card border border-surface-border rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-zinc-600 text-[10px] uppercase tracking-widest">Data</p>
+                      <p className="text-white font-bold tabular-nums">{formatDate(m.data_medicao)}</p>
+                    </div>
+                    <div className="flex gap-3 shrink-0">
+                      <button
+                        onClick={() => setEditTarget(m)}
+                        className="text-xs uppercase tracking-widest font-bold text-zinc-400 hover:text-white"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => pedirRemover(m)}
+                        className="text-xs uppercase tracking-widest font-bold text-red-400 hover:text-red-300"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <MetricaMini label="Peso" value={formatMedida(m.peso_kg, ' kg') ?? '—'} />
+                    <MetricaMini label="%BF" value={formatMedida(m.percentual_gordura, '%') ?? '—'} />
+                  </div>
+                  <button
+                    onClick={() => setExpandidaId(expandida ? null : m.id)}
+                    className="w-full text-xs uppercase tracking-widest font-bold text-brand border border-brand/40 rounded-md py-2 hover:bg-brand/10"
+                  >
+                    {expandida ? 'Ocultar detalhes' : 'Ver detalhes'}
+                  </button>
+                  {expandida && (
+                    <div className="mt-3">
+                      <UltimaMedicaoCard medida={m} compact />
+                      {m.observacoes && (
+                        <div className="mt-3 text-xs text-zinc-400 border-l-2 border-surface-border pl-3 whitespace-pre-wrap">
+                          {m.observacoes}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 
@@ -737,7 +797,7 @@ function MedidaModal({ open, onClose, alunoId, onCreated, seed = null }) {
           <Input
             type="date"
             value={form.data_medicao || ''}
-            onChange={(e) => setForm({ ...form, data_medicao: e.target.value })}
+            onChange={(e) => setForm((f) => ({ ...f, data_medicao: e.target.value }))}
             className="max-w-xs"
           />
         </Field>
@@ -783,7 +843,7 @@ function MedidaModal({ open, onClose, alunoId, onCreated, seed = null }) {
             rows={2}
             className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm resize-none"
             value={form.observacoes || ''}
-            onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
+            onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
           />
         </Field>
       </div>
@@ -798,7 +858,7 @@ function MedidaField({ name, label, form, setForm }) {
         type="number"
         step="0.1"
         value={form[name] ?? ''}
-        onChange={(e) => setForm({ ...form, [name]: e.target.value })}
+        onChange={(e) => setForm((f) => ({ ...f, [name]: e.target.value }))}
       />
     </Field>
   );
@@ -822,12 +882,93 @@ function formatDataExtensa(data) {
   } catch { return data; }
 }
 
-function TabFotos({ alunoId }) {
+function FotoLightbox({ foto, onClose }) {
+  useEffect(() => {
+    if (!foto) return;
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [foto, onClose]);
+
+  if (!foto) return null;
+
+  const posLabel = POSICOES.find((p) => p.id === foto.posicao)?.label || foto.posicao;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        title="Fechar"
+        className="fixed top-4 right-4 z-[51] w-10 h-10 rounded-full bg-black/70 border border-zinc-700 text-white hover:bg-zinc-800 flex items-center justify-center text-lg"
+      >
+        ✕
+      </button>
+      <img
+        src={foto.url}
+        alt={posLabel}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[90vw] object-contain"
+      />
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-black/70 border border-zinc-700 rounded-md px-3 py-1.5 text-xs uppercase tracking-widest text-white">
+        {posLabel} · {formatDataExtensa(foto.data)}
+      </div>
+    </div>
+  );
+}
+
+async function baixarFoto(foto) {
+  const posLabel = (POSICOES.find((p) => p.id === foto.posicao)?.label || foto.posicao)
+    .toLowerCase().replace(/\s+/g, '-');
+  const filename = `foto-${posLabel}-${foto.data || 'sem-data'}.jpg`;
+  try {
+    const res = await fetch(foto.url, { mode: 'cors' });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    // fallback: abre em nova aba
+    const a = document.createElement('a');
+    a.href = foto.url;
+    a.download = filename;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+}
+
+function TabFotos({ alunoId, aluno, onReload }) {
   const toast = useToast();
   const [blocos, setBlocos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmDel, setConfirmDel] = useState({ aberto: false, fotoId: null });
   const [deletando, setDeletando] = useState(false);
+  const [togglingLib, setTogglingLib] = useState(false);
+  const [lightboxFoto, setLightboxFoto] = useState(null);
+
+  async function toggleLiberacao() {
+    setTogglingLib(true);
+    try {
+      const novo = !aluno?.envio_fotos_liberado;
+      await api.patch(`/admin/alunos/${alunoId}/liberar-fotos`, { liberado: novo });
+      toast.success(novo ? 'Envio liberado.' : 'Envio bloqueado.');
+      onReload?.();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setTogglingLib(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -867,18 +1008,39 @@ function TabFotos({ alunoId }) {
     return <PageLoader mensagem="Carregando fotos..." />;
   }
 
+  const headerLib = (
+    <div className="flex justify-end mb-4">
+      <button
+        onClick={toggleLiberacao}
+        disabled={togglingLib}
+        className={clsx(
+          'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors disabled:opacity-50',
+          aluno?.envio_fotos_liberado
+            ? 'bg-green-950 text-green-400 border border-green-800'
+            : 'bg-surface-elevated text-zinc-400 border border-surface-border'
+        )}
+      >
+        {aluno?.envio_fotos_liberado ? '🔓 Envio liberado' : '🔒 Liberar envio'}
+      </button>
+    </div>
+  );
+
   if (blocos.length === 0) {
     return (
-      <EmptyState
-        icone="📷"
-        titulo="Nenhuma foto enviada"
-        descricao="O aluno ainda não enviou fotos de progresso."
-      />
+      <div>
+        {headerLib}
+        <EmptyState
+          icone="📷"
+          titulo="Nenhuma foto enviada"
+          descricao="O aluno ainda não enviou fotos de progresso."
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-5">
+      {headerLib}
       {blocos.map((bloco) => (
         <Card key={bloco.data} className="p-5">
           <div className="text-section-label mb-4">{formatDataExtensa(bloco.data)}</div>
@@ -890,11 +1052,32 @@ function TabFotos({ alunoId }) {
                   <div className="text-[10px] uppercase tracking-widest text-zinc-600">{pos.label}</div>
                   {foto ? (
                     <div className="relative aspect-[3/4] w-full overflow-hidden rounded-md bg-black border border-surface-border group">
-                      <img src={foto.url} alt={pos.label} className="w-full h-full object-cover" loading="lazy" />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxFoto({ ...foto, data: bloco.data })}
+                        className="absolute inset-0 w-full h-full"
+                        title="Abrir em tela cheia"
+                      >
+                        <img src={foto.url} alt={pos.label} className="w-full h-full object-cover" loading="lazy" />
+                      </button>
+                      <button
+                        onClick={() => setLightboxFoto({ ...foto, data: bloco.data })}
+                        title="Tela cheia"
+                        className="absolute top-1.5 left-1.5 w-8 h-8 rounded-md bg-black/70 border border-zinc-700 text-white hover:bg-zinc-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm"
+                      >
+                        ⤢
+                      </button>
+                      <button
+                        onClick={() => baixarFoto({ ...foto, data: bloco.data })}
+                        title="Baixar foto"
+                        className="absolute bottom-1.5 left-1.5 w-8 h-8 rounded-md bg-black/70 border border-zinc-700 text-white hover:bg-zinc-800 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm"
+                      >
+                        ⬇
+                      </button>
                       <button
                         onClick={() => pedirRemover(foto.id)}
                         title="Excluir foto"
-                        className="absolute top-1.5 right-1.5 w-8 h-8 rounded-md bg-black/70 border border-red-900 text-red-400 hover:bg-red-950 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        className="absolute top-1.5 right-1.5 w-8 h-8 rounded-md bg-black/70 border border-red-900 text-red-400 hover:bg-red-950 hover:text-red-300 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       >
                         🗑
                       </button>
@@ -921,6 +1104,8 @@ function TabFotos({ alunoId }) {
         onConfirmar={confirmarRemover}
         onCancelar={() => setConfirmDel({ aberto: false, fotoId: null })}
       />
+
+      <FotoLightbox foto={lightboxFoto} onClose={() => setLightboxFoto(null)} />
     </div>
   );
 }
@@ -1070,30 +1255,26 @@ function TabFaturas({ alunoId, alunoTolerancia, onReload }) {
                     <td className="px-5 py-2.5 tabular-nums">{formatDate(f.data_baixa)}</td>
                     <td className="px-5 py-2.5 uppercase text-xs tracking-widest">{f.metodo_baixa || '—'}</td>
                     <td className="px-5 py-2.5 text-right space-x-2">
+                      <button
+                        onClick={() => setEditTarget(f)}
+                        className="text-xs uppercase tracking-widest font-bold text-zinc-400 hover:text-zinc-200"
+                      >
+                        Editar
+                      </button>
                       {(f.status === 'pendente' || f.status === 'vencido') && (
-                        <>
-                          <button
-                            onClick={() => setEditTarget(f)}
-                            className="text-xs uppercase tracking-widest font-bold text-zinc-400 hover:text-zinc-200"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => setBaixaTarget(f)}
-                            className="text-xs uppercase tracking-widest font-bold text-green-400 hover:text-green-300"
-                          >
-                            Dar baixa
-                          </button>
-                        </>
-                      )}
-                      {f.status === 'pendente' && (
                         <button
-                          onClick={() => pedirRemover(f)}
-                          className="text-xs uppercase tracking-widest font-bold text-red-400 hover:text-red-300"
+                          onClick={() => setBaixaTarget(f)}
+                          className="text-xs uppercase tracking-widest font-bold text-green-400 hover:text-green-300"
                         >
-                          Remover
+                          Dar baixa
                         </button>
                       )}
+                      <button
+                        onClick={() => pedirRemover(f)}
+                        className="text-xs uppercase tracking-widest font-bold text-red-400 hover:text-red-300"
+                      >
+                        Remover
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1130,30 +1311,28 @@ function TabFaturas({ alunoId, alunoTolerancia, onReload }) {
                   {f.metodo_baixa && <span className="text-zinc-300 uppercase tracking-widest ml-2">· {f.metodo_baixa}</span>}
                 </div>
               )}
-              {(f.status === 'pendente' || f.status === 'vencido') && (
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => setEditTarget(f)}
-                    className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-zinc-300 border border-surface-border rounded-md py-2 hover:bg-surface-elevated"
-                  >
-                    Editar
-                  </button>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setEditTarget(f)}
+                  className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-zinc-300 border border-surface-border rounded-md py-2 hover:bg-surface-elevated"
+                >
+                  Editar
+                </button>
+                {(f.status === 'pendente' || f.status === 'vencido') && (
                   <button
                     onClick={() => setBaixaTarget(f)}
                     className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-green-300 border border-green-900 bg-green-950/40 rounded-md py-2 hover:bg-green-950"
                   >
                     Dar baixa
                   </button>
-                  {f.status === 'pendente' && (
-                    <button
-                      onClick={() => pedirRemover(f)}
-                      className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-red-300 border border-red-900 bg-red-950/40 rounded-md py-2 hover:bg-red-950"
-                    >
-                      Remover
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+                <button
+                  onClick={() => pedirRemover(f)}
+                  className="flex-1 min-w-[80px] text-xs uppercase tracking-widest font-bold text-red-300 border border-red-900 bg-red-950/40 rounded-md py-2 hover:bg-red-950"
+                >
+                  Remover
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -1215,7 +1394,7 @@ function DescontoSection({ form, setForm }) {
         <Field label="Tipo de desconto">
           <select
             value={form.desconto_tipo}
-            onChange={(e) => setForm({ ...form, desconto_tipo: e.target.value, desconto_valor: '' })}
+            onChange={(e) => setForm((f) => ({ ...f, desconto_tipo: e.target.value, desconto_valor: '' }))}
             className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm"
           >
             <option value="">Nenhum</option>
@@ -1228,7 +1407,7 @@ function DescontoSection({ form, setForm }) {
             <Input
               type="number" step="0.01" min="0"
               value={form.desconto_valor}
-              onChange={(e) => setForm({ ...form, desconto_valor: e.target.value })}
+              onChange={(e) => setForm((f) => ({ ...f, desconto_valor: e.target.value }))}
             />
           </Field>
         )}
@@ -1289,14 +1468,14 @@ function FaturaModal({ open, onClose, alunoId, onCreated }) {
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Valor (R$) *">
-            <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+            <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} />
           </Field>
           <Field label="Vencimento *">
-            <Input type="date" value={form.data_vencimento} onChange={(e) => setForm({ ...form, data_vencimento: e.target.value })} />
+            <Input type="date" value={form.data_vencimento} onChange={(e) => setForm((f) => ({ ...f, data_vencimento: e.target.value }))} />
           </Field>
         </div>
         <Field label="Observações">
-          <Input value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
+          <Input value={form.observacoes} onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))} />
         </Field>
         <DescontoSection form={form} setForm={setForm} />
       </div>
@@ -1360,17 +1539,17 @@ function EditarFaturaModal({ fatura, onClose, onSaved }) {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Valor (R$) *">
-              <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm({ ...form, valor: e.target.value })} />
+              <Input type="number" step="0.01" value={form.valor} onChange={(e) => setForm((f) => ({ ...f, valor: e.target.value }))} />
             </Field>
             <Field label="Vencimento *">
-              <Input type="date" value={form.data_vencimento} onChange={(e) => setForm({ ...form, data_vencimento: e.target.value })} />
+              <Input type="date" value={form.data_vencimento} onChange={(e) => setForm((f) => ({ ...f, data_vencimento: e.target.value }))} />
             </Field>
           </div>
           <Field label="Observações">
             <textarea rows={2}
               className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm resize-none"
               value={form.observacoes}
-              onChange={(e) => setForm({ ...form, observacoes: e.target.value })}
+              onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
             />
           </Field>
           <DescontoSection form={form} setForm={setForm} />
@@ -1437,12 +1616,12 @@ function BaixaModal({ fatura, onClose, onConfirmed }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Data da baixa *">
-              <Input type="date" value={form.data_baixa} onChange={(e) => setForm({ ...form, data_baixa: e.target.value })} />
+              <Input type="date" value={form.data_baixa} onChange={(e) => setForm((f) => ({ ...f, data_baixa: e.target.value }))} />
             </Field>
             <Field label="Método *">
               <select
                 value={form.metodo_baixa}
-                onChange={(e) => setForm({ ...form, metodo_baixa: e.target.value })}
+                onChange={(e) => setForm((f) => ({ ...f, metodo_baixa: e.target.value }))}
                 className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm"
               >
                 {METODOS.map((m) => <option key={m.v} value={m.v}>{m.l}</option>)}
@@ -1450,7 +1629,7 @@ function BaixaModal({ fatura, onClose, onConfirmed }) {
             </Field>
           </div>
           <Field label="Observações">
-            <Input value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
+            <Input value={form.observacoes} onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))} />
           </Field>
         </div>
       )}
@@ -1497,7 +1676,7 @@ function TabProtocolos({ alunoId }) {
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {data.map((p) => (
-          <ProtocoloCard key={p.id} protocolo={p} alunoId={alunoId} />
+          <ProtocoloCard key={p.id} protocolo={p} alunoId={alunoId} onChange={load} />
         ))}
       </div>
       )}
@@ -1520,10 +1699,29 @@ function Pill({ children }) {
   );
 }
 
-function ProtocoloCard({ protocolo: p, alunoId }) {
+function ProtocoloStatusBadge({ ativo, finalizado }) {
+  if (ativo) {
+    return (
+      <span className="text-[10px] uppercase tracking-widest text-green-400 bg-green-950 border border-green-900 px-1.5 py-0.5 rounded">Ativo</span>
+    );
+  }
+  if (finalizado) {
+    return (
+      <span className="text-[10px] uppercase tracking-widest text-yellow-400 bg-yellow-950 border border-yellow-900 px-1.5 py-0.5 rounded">Finalizado</span>
+    );
+  }
+  return (
+    <span className="text-[10px] uppercase tracking-widest text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">Inativo</span>
+  );
+}
+
+function ProtocoloCard({ protocolo: p, alunoId, onChange }) {
   const toast = useToast();
   const [enviando, setEnviando] = useState(false);
   const [baixando, setBaixando] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [deletando, setDeletando] = useState(false);
 
   async function enviarPDF() {
     setEnviando(true);
@@ -1556,17 +1754,27 @@ function ProtocoloCard({ protocolo: p, alunoId }) {
     }
   }
 
+  async function excluir() {
+    setDeletando(true);
+    try {
+      await api.delete(`/admin/protocolos/${p.id}`);
+      toast.success('Protocolo removido.');
+      setConfirmDel(false);
+      onChange?.();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setDeletando(false);
+    }
+  }
+
   return (
     <Card className="p-5 hover:bg-surface-elevated transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-lg font-black text-white truncate">{p.nome}</h3>
-            {p.ativo ? (
-              <span className="text-[10px] uppercase tracking-widest text-green-400 bg-green-950 border border-green-900 px-1.5 py-0.5 rounded">Ativo</span>
-            ) : (
-              <span className="text-[10px] uppercase tracking-widest text-zinc-500 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">Inativo</span>
-            )}
+            <ProtocoloStatusBadge ativo={p.ativo} finalizado={p.finalizado} />
           </div>
           <div className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{p.fase || '—'}</div>
         </div>
@@ -1574,7 +1782,7 @@ function ProtocoloCard({ protocolo: p, alunoId }) {
           to={`/admin/alunos/${alunoId}/protocolos/${p.id}`}
           className="text-xs uppercase tracking-widest font-bold text-brand hover:text-brand-dark shrink-0"
         >
-          Editar →
+          Abrir →
         </Link>
       </div>
 
@@ -1590,7 +1798,23 @@ function ProtocoloCard({ protocolo: p, alunoId }) {
         {p.modulo_suplementacao && <Pill>Suplem.</Pill>}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-surface-border flex justify-end gap-2">
+      <div className="mt-4 pt-4 border-t border-surface-border flex justify-end gap-2 flex-wrap">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpenEdit(true)}
+          className="text-zinc-300 border border-surface-border hover:text-white text-xs"
+        >
+          Editar
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setConfirmDel(true)}
+          className="text-red-400 border border-red-900 hover:bg-red-950/40 hover:text-red-300 text-xs"
+        >
+          Excluir
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -1610,7 +1834,131 @@ function ProtocoloCard({ protocolo: p, alunoId }) {
           {enviando ? 'Enviando…' : 'Enviar PDF'}
         </Button>
       </div>
+
+      <EditarProtocoloModal
+        open={openEdit}
+        protocolo={p}
+        onClose={() => setOpenEdit(false)}
+        onSaved={() => { setOpenEdit(false); onChange?.(); }}
+      />
+
+      <ConfirmModal
+        aberto={confirmDel}
+        titulo="Excluir protocolo?"
+        descricao={`Remover o protocolo "${p.nome}" e todos os seus dados (refeições, treinos, suplementação). Esta ação não pode ser desfeita.`}
+        textoBotao="Excluir protocolo"
+        variante="danger"
+        carregando={deletando}
+        onConfirmar={excluir}
+        onCancelar={() => setConfirmDel(false)}
+      />
     </Card>
+  );
+}
+
+function EditarProtocoloModal({ open, protocolo, onClose, onSaved }) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    nome: '', objetivo: '', fase: 'cutting',
+    data_inicio: '', data_fim: '', status: 'ativo',
+  });
+
+  useEffect(() => {
+    if (!open || !protocolo) return;
+    const statusInicial = protocolo.ativo
+      ? 'ativo'
+      : protocolo.finalizado ? 'finalizado' : 'inativo';
+    setForm({
+      nome: protocolo.nome || '',
+      objetivo: protocolo.objetivo || '',
+      fase: protocolo.fase || 'cutting',
+      data_inicio: (protocolo.data_inicio || '').slice(0, 10),
+      data_fim: (protocolo.data_fim || '').slice(0, 10),
+      status: statusInicial,
+    });
+  }, [open, protocolo]);
+
+  async function salvar() {
+    if (!form.nome.trim()) { toast.error('Nome é obrigatório.'); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        nome: form.nome.trim(),
+        objetivo: form.objetivo || null,
+        fase: form.fase || null,
+        data_inicio: form.data_inicio || null,
+        data_fim: form.data_fim || null,
+      };
+      if (form.status === 'ativo') {
+        payload.ativo = true;
+        payload.finalizado = false;
+      } else if (form.status === 'finalizado') {
+        payload.ativo = false;
+        payload.finalizado = true;
+      } else {
+        payload.ativo = false;
+        payload.finalizado = false;
+      }
+      await api.put(`/admin/protocolos/${protocolo.id}`, payload);
+      toast.success('Protocolo atualizado.');
+      onSaved();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Editar protocolo"
+      footer={<>
+        <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
+        <Button onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</Button>
+      </>}
+    >
+      <div className="space-y-3">
+        <Field label="Nome *">
+          <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Objetivo">
+            <Input value={form.objetivo} onChange={(e) => setForm((f) => ({ ...f, objetivo: e.target.value }))} />
+          </Field>
+          <Field label="Fase">
+            <select
+              value={form.fase}
+              onChange={(e) => setForm((f) => ({ ...f, fase: e.target.value }))}
+              className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm"
+            >
+              {FASES.map((f) => <option key={f.v} value={f.v}>{f.l}</option>)}
+            </select>
+          </Field>
+          <Field label="Início">
+            <Input type="date" value={form.data_inicio}
+              onChange={(e) => setForm((f) => ({ ...f, data_inicio: e.target.value }))} />
+          </Field>
+          <Field label="Fim">
+            <Input type="date" value={form.data_fim}
+              onChange={(e) => setForm((f) => ({ ...f, data_fim: e.target.value }))} />
+          </Field>
+        </div>
+        <Field label="Status">
+          <select
+            value={form.status}
+            onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+            className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm"
+          >
+            <option value="ativo">Ativo</option>
+            <option value="finalizado">Finalizado</option>
+            <option value="inativo">Inativo</option>
+          </select>
+        </Field>
+      </div>
+    </Modal>
   );
 }
 
@@ -1655,17 +2003,17 @@ function ProtocoloModal({ open, onClose, alunoId, onCreated }) {
       </>}
     >
       <div className="space-y-3">
-        <Field label="Nome *"><Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></Field>
+        <Field label="Nome *"><Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Objetivo"><Input value={form.objetivo} onChange={(e) => setForm({ ...form, objetivo: e.target.value })} /></Field>
+          <Field label="Objetivo"><Input value={form.objetivo} onChange={(e) => setForm((f) => ({ ...f, objetivo: e.target.value }))} /></Field>
           <Field label="Fase">
-            <select value={form.fase} onChange={(e) => setForm({ ...form, fase: e.target.value })}
+            <select value={form.fase} onChange={(e) => setForm((f) => ({ ...f, fase: e.target.value }))}
               className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm">
               {FASES.map((f) => <option key={f.v} value={f.v}>{f.l}</option>)}
             </select>
           </Field>
-          <Field label="Início"><Input type="date" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} /></Field>
-          <Field label="Fim"><Input type="date" value={form.data_fim} onChange={(e) => setForm({ ...form, data_fim: e.target.value })} /></Field>
+          <Field label="Início"><Input type="date" value={form.data_inicio} onChange={(e) => setForm((f) => ({ ...f, data_inicio: e.target.value }))} /></Field>
+          <Field label="Fim"><Input type="date" value={form.data_fim} onChange={(e) => setForm((f) => ({ ...f, data_fim: e.target.value }))} /></Field>
         </div>
         <div>
           <div className="text-section-label mb-2">Módulos ativos</div>

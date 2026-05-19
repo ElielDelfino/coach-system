@@ -1,6 +1,12 @@
-# Database & Modelo Financeiro
+# Banco de Dados
 
-## 16 tabelas
+## Conexão
+- Pool via `pg.Pool` usando `process.env.DATABASE_URL`
+- Arquivo: `backend/src/config/db.js`
+
+---
+
+## 16 Tabelas
 
 ```
 IDENTIDADE          FINANCEIRO    BIBLIOTECAS       PROTOCOLO
@@ -13,66 +19,84 @@ aluno_fotos                                         refeicao_item_substitutos
                                                     suplementacao
 ```
 
-## Migrações aplicadas (idempotentes)
+---
 
-- **M001:** `ALTER TABLE users ADD COLUMN nome`
-- **M002:** `ALTER TABLE alunos ADD COLUMN peso_atual_kg, altura_cm, percentual_gordura, peso_magro_kg, peso_gordo_kg`
-- **M003:** `ALTER TABLE alunos ADD COLUMN dias_tolerancia, periodicidade_dias`
-- **M004:** `CREATE TABLE faturas (...)`
-- **M005:** `ALTER TABLE faturas ADD COLUMN desconto_tipo, desconto_valor`
+## Migrações aplicadas (migrate.js)
 
-Executadas via `config/migrate.js` — roda `schema.sql` + migrações na ordem.
+| ID | Descrição |
+|----|-----------|
+| M001 | ALTER TABLE users ADD COLUMN nome |
+| M002 | ALTER TABLE alunos ADD COLUMN peso_atual_kg, altura_cm, percentual_gordura, peso_magro_kg, peso_gordo_kg |
+| M003 | ALTER TABLE alunos ADD COLUMN dias_tolerancia (default 7), periodicidade_dias (default 30) |
+| M004 | CREATE TABLE faturas |
+| M005 | ALTER TABLE faturas ADD COLUMN desconto_tipo, desconto_valor |
+| M006 | ALTER TABLE aluno_fotos ADD COLUMN s3_key, enviada_por |
+| M007 | ALTER TABLE exercicios ADD COLUMN thumbnail_s3_key, video_s3_key, ALTER TABLE alimentos ADD COLUMN foto_s3_key |
+| M008 | ALTER TABLE aluno_fotos ADD COLUMN (já em M006 — idempotente) |
+| M009 | ALTER TABLE aluno_medidas ADD COLUMN abdomen_cm, antebraco_dir_cm, antebraco_esq_cm, panturrilha_dir_cm, panturrilha_esq_cm |
+| M010 | ALTER TABLE exercicios ADD COLUMN video_youtube_url, video_tipo |
+| M011 | ALTER TABLE protocolos ADD COLUMN meta_agua_litros (default 2.5) |
+| M012 | ALTER TABLE alunos ADD COLUMN envio_fotos_liberado (default false) |
 
-## Modelo Financeiro — Faturas
+---
 
-Sistema usa **faturas**, não pagamentos diretos.
+## Modelo financeiro — Faturas
 
-### Fluxo
-1. Admin lança fatura: `POST /admin/alunos/:id/faturas`
-2. Aluno paga → admin dá baixa: `PATCH /admin/faturas/:id/baixa`
-3. Status calculado dinamicamente — nunca coluna persistida
+Status do aluno calculado dinamicamente no SQL (nunca armazenado):
 
-### Status do aluno (SQL)
-
-| Status | Condição |
-|--------|----------|
-| `neutro` | Sem nenhuma fatura lançada |
-| `em_dia` | Faturas pagas **OU** dentro do prazo de tolerância |
-| `inadimplente` | Fatura pendente com `data_vencimento + dias_tolerancia < NOW()` |
-| `inativo` | `aluno.ativo = false` |
-
-### Campos críticos
-
-- `alunos.dias_tolerancia` (default 7 dias) — dias após vencimento antes de bloquear
-- `alunos.periodicidade_dias` (default 30) — ciclo do plano do aluno
-- `faturas.status` → `pendente | pago | vencido`
-- `faturas.desconto_tipo` → `valor | percentual | null`
-- `faturas.desconto_valor` → `numeric | null`
-- `faturas.valor_final` → **calculado na query, nunca persistido**
-
-### Regras
-
-- Fatura paga **não pode ser editada nem removida**
-- Aluno inadimplente é bloqueado automaticamente em rotas `/aluno/*`
-- Middleware `auth.js` bloqueia inadimplente com `403 code: INADIMPLENTE`
-
-## Geração de PDF & Email
-
-**Biblioteca:** Puppeteer (renderiza HTML → PDF em buffer)  
-**Email:** Resend (@resend/node)
-
-**Arquivos:**
-- `backend/src/services/pdf.js` — gera PDF via Puppeteer
-- `backend/src/services/email.js` — envia via Resend
-- `backend/src/templates/protocolo.html` — template HTML
-
-**Rota:**
-```
-POST /api/admin/protocolos/:id/enviar-pdf
-→ Busca dados do protocolo
-→ Gera PDF em buffer
-→ Envia por email para o aluno
-→ 200: { message: "Protocolo enviado para email@aluno.com" }
+```sql
+CASE
+  WHEN a.ativo = false THEN 'inativo'
+  WHEN NOT EXISTS (SELECT 1 FROM faturas WHERE aluno_id = a.id) THEN 'neutro'
+  WHEN EXISTS (
+    SELECT 1 FROM faturas
+    WHERE aluno_id = a.id
+    AND status = 'pendente'
+    AND data_vencimento + (a.dias_tolerancia || ' days')::interval < NOW()
+  ) THEN 'inadimplente'
+  ELSE 'em_dia'
+END as status
 ```
 
-**Email remetente:** `process.env.EMAIL_FROM` (onboarding@resend.dev em dev)
+**Campos relevantes em alunos:**
+- `dias_tolerancia` — dias após vencimento antes de bloquear (default 7)
+- `periodicidade_dias` — periodicidade do plano (default 30)
+- `envio_fotos_liberado` — se o admin liberou envio de fotos (default false)
+
+**Tabela faturas:**
+- `status`: pendente | pago | vencido
+- `desconto_tipo`: valor | percentual | null
+- `desconto_valor`: numeric | null
+- `valor_final`: CALCULADO na query — nunca persistido
+- Fatura paga: não pode ser editada nem removida
+
+---
+
+## Campos de medidas (aluno_medidas)
+
+Todos os 17 campos:
+`data_medicao, peso_kg, altura_cm, percentual_gordura, peso_magro_kg, peso_gordo_kg,
+cintura_cm, quadril_cm, abdomen_cm, braco_dir_cm, braco_esq_cm,
+antebraco_dir_cm, antebraco_esq_cm, coxa_dir_cm, coxa_esq_cm,
+panturrilha_dir_cm, panturrilha_esq_cm`
+
+---
+
+## Exercícios — vídeo
+
+- `video_tipo`: 's3' | 'youtube' | null
+- `video_url`: URL S3 se tipo='s3'
+- `video_youtube_url`: URL original se tipo='youtube'
+- `video_embed_url`: calculado na query como `https://www.youtube.com/embed/{id}`
+- **Sem thumbnail** — vídeo exibido diretamente
+
+---
+
+## Padrões do schema
+
+- IDs: UUID com `gen_random_uuid()`
+- Timestamps: `created_at` e `updated_at` em todas as tabelas
+- `updated_at`: atualizado automaticamente via trigger `trigger_set_updated_at`
+- Soft delete: coluna `ativo BOOLEAN DEFAULT true` (nunca DELETE físico de users/alunos)
+- Enums: via CHECK constraints, não tipo ENUM do PostgreSQL
+- Nomes: snake_case

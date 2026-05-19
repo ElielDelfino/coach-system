@@ -2,51 +2,157 @@
 
 ## Backend (Node.js + Express)
 
-✅ **Obrigatório:**
+### Padrões obrigatórios
 - `async/await` em todo o código — sem callbacks
-- `try/catch` em todo controller — erro retorna `{ message: "..." }`
+- `try/catch` em todo controller
+- Erros retornam sempre: `{ message: "descrição clara" }`
 - Senhas: `bcryptjs` com salt 12 — nunca texto puro
-- Variáveis: SEMPRE via `process.env` — nunca hardcoded
-- Respostas de erro: **400 / 401 / 403 / 404 / 500** com mensagem coerente
-- `valor_final` de faturas: calculado na query SQL, nunca persistido como coluna
-- Estrutura: `config/`, `middlewares/`, `routes/`, `controllers/`, `models/`, `services/`
+- Variáveis: sempre via `process.env` — nunca hardcoded
+- Queries SQL: sempre com parâmetros posicionais ($1, $2) — nunca interpolação de string
 
-❌ **Proibido:**
-- Callbacks
-- Variáveis hardcoded
-- Senhas em texto puro
-- Lógica de negócio em routes
+### Status codes
+| Código | Uso |
+|--------|-----|
+| 200 | Sucesso |
+| 201 | Criado |
+| 400 | Dados inválidos |
+| 401 | Sem token ou token inválido |
+| 403 | Token válido mas sem permissão |
+| 404 | Recurso não encontrado |
+| 500 | Erro inesperado |
 
-## Frontend (React + Tailwind)
-
-✅ **Obrigatório:**
-- Access token NUNCA em `localStorage` — apenas React Context
-- Todo fetch via instância Axios em `services/api.js` — nunca `fetch()` direto
-- Interceptor: `401` → `POST /auth/refresh` → reenviar original → falha → `logout()` + `/login`
-- Erro `403 code=INADIMPLENTE` em `/aluno/*` → exibir tela de bloqueio
-- Erros exibidos via toast: `response.data.message`
-- Componentes próprios em `src/components/ui/` — sem shadcn/ui
-- Estrutura: `context/`, `services/`, `components/`, `pages/`
-
-❌ **Proibido:**
-- `localStorage` para token
-- `fetch()` direto — sempre Axios
-- shadcn/ui
-- Hardcoded URLs de API
-- Token em query string ou cookie visível ao JS
-
-## Deploy
-
-Variáveis de ambiente CRÍTICAS:
-```
-DATABASE_URL=postgresql://...
-REDIS_URL=redis://:pass@cache:6379
-JWT_SECRET=<algo forte, 32+ chars>
-JWT_REFRESH_SECRET=<algo forte, 32+ chars>
-NODE_ENV=production
-RESEND_API_KEY=<chave Resend>
-EMAIL_FROM=noreply@seu-dominio.com
-PORT=3001 (ou outro)
+### Queries paginadas
+Sempre separar `filterParams` de `[limit, offset]`:
+```js
+const filterParams = [];
+// ... montar conditions
+const dataParams = [...filterParams, limit, offset];
+const limitIdx   = dataParams.length - 1;
+const offsetIdx  = dataParams.length;
+// usar $${limitIdx} e $${offsetIdx} na query
+// countQ usa apenas filterParams
 ```
 
-Nunca commitar `.env` — usar variáveis de ambiente do container.
+### Reordenação (drag and drop)
+Sempre usar `unnest` — nunca loop:
+```sql
+UPDATE tabela AS t SET ordem = v.ordem
+FROM unnest($1::uuid[], $2::int[]) AS v(id, ordem)
+WHERE t.id = v.id AND t.parent_id = $3;
+```
+
+### Upload S3
+- Arquivo: `backend/src/middlewares/upload.js`
+- Ao deletar: sempre chamar `deletarArquivo(s3_key)` antes de remover do banco
+- Limites: imagens 15MB, vídeos 500MB
+
+### PDF (Puppeteer)
+- Retornar buffer com `res.end(pdfBuffer, 'binary')` — não `res.send()`
+- Incluir `--disable-dev-shm-usage` nos args do Chromium no Docker
+
+---
+
+## Frontend (React)
+
+### Padrões obrigatórios
+- Access token: NUNCA em localStorage — apenas React Context (AuthContext)
+- Todo fetch: via instância Axios em `services/api.js` — nunca `fetch()` direto
+- Erros: exibir sempre `err.response?.data?.message` no toast
+- Interceptor: 401 → POST /auth/refresh → reenviar original → falha → logout + /login
+
+### Padrão de página com dados assíncronos
+```jsx
+const [dados, setDados] = useState([]);
+const [loading, setLoading] = useState(true);
+const [erro, setErro] = useState(null);
+
+async function carregar() {
+  setLoading(true); setErro(null);
+  try {
+    const res = await api.get('/rota');
+    setDados(res.data);
+  } catch (err) {
+    setErro(err.response?.data?.message || 'Erro ao carregar.');
+  } finally {
+    setLoading(false);
+  }
+}
+useEffect(() => { carregar(); }, []);
+
+if (loading) return <PageLoader />;
+if (erro)    return <ErrorState mensagem={erro} onRetry={carregar} />;
+```
+
+### Padrão de botão com loading
+```jsx
+const [salvando, setSalvando] = useState(false);
+async function handleSalvar() {
+  setSalvando(true);
+  try {
+    await api.post('/rota', dados);
+    toast.success('Salvo!');
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Erro ao salvar.');
+  } finally { setSalvando(false); }
+}
+<Button disabled={salvando} onClick={handleSalvar}>
+  {salvando ? <><Spinner size="sm" /> Salvando...</> : 'Salvar'}
+</Button>
+```
+
+### Download de PDF
+```jsx
+const res = await api.get('/rota/pdf', { responseType: 'blob' }); // CRÍTICO: blob
+const blob = new Blob([res.data], { type: 'application/pdf' });
+const url  = URL.createObjectURL(blob);
+const a    = document.createElement('a');
+a.href = url; a.download = 'arquivo.pdf'; a.click();
+URL.revokeObjectURL(url);
+```
+
+### Dropdown com busca (evitar bug de blur/click)
+```jsx
+// Usar onMouseDown + preventDefault no item — nunca onClick
+<button onMouseDown={(e) => { e.preventDefault(); selecionarItem(item); }}>
+  {item.nome}
+</button>
+```
+
+### Responsividade
+- Tabelas: sempre `overflow-x-auto` com `min-w-full`
+- Tabs: `overflow-x-auto scrollbar-none` com `min-w-max` nos itens
+- Modais: bottom sheet no mobile, centralizado no desktop
+- Inputs: `text-base md:text-sm` para evitar zoom automático no iOS
+- Botões: altura mínima `min-h-[44px]` no mobile
+
+### localStorage (dados temporários do aluno)
+- Água: `agua_{userId}_{dataHoje}` — reseta por dia automaticamente
+- Progresso de treino: `treino_{treinoId}_{dataHoje}`
+- Exercícios concluídos: `concluidos_{treinoId}_{dataHoje}`
+- Treino planejado por dia: `treino_dia_{userId}_{dataHoje}`
+
+---
+
+## Área do aluno — estrutura mobile-first
+
+A área do aluno usa layout com **bottom navigation fixo** (AlunoLayout.jsx):
+- Home → `/aluno/home`
+- Treino → `/aluno/treino`
+- Dieta → `/aluno/dieta`
+- Perfil → `/aluno/perfil`
+
+Página de execução do treino (`/aluno/treino/:protocoloId/:treinoId`):
+- Timer de descanso regressivo
+- Registro de peso/reps por série (localStorage)
+- Barra de progresso por exercícios concluídos
+- Tela de parabéns com Web Share API ao concluir todos
+
+---
+
+## Alterações cirúrgicas
+
+Ao modificar qualquer arquivo existente:
+1. Ler o arquivo completo primeiro
+2. Fazer apenas as alterações necessárias
+3. Nunca reescrever o arquivo inteiro sem necessidade
+4. Manter o estilo e padrões do código existente

@@ -26,7 +26,7 @@ export default function Login() {
     setLoading(true);
     try {
       const u = await login(email, senha);
-      const fallback = u.role === 'admin' ? '/admin/dashboard' : '/aluno/perfil';
+      const fallback = u.role === 'admin' ? '/admin/dashboard' : '/aluno/home';
       navigate(from && from !== '/login' ? from : fallback, { replace: true });
     } catch (err) {
       toast.error(errorMessage(err));

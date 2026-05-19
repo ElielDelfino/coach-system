@@ -42,4 +42,10 @@
   .text-metric {
     @apply text-3xl font-black text-brand;
   }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

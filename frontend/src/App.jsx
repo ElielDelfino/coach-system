@@ -12,8 +12,12 @@ import Alimentos from './pages/admin/Alimentos';
 import Cardio from './pages/admin/Cardio';
 import ProtocoloBuilder from './pages/admin/ProtocoloBuilder';
 
-import Perfil from './pages/aluno/Perfil';
-import MeuProtocolo from './pages/aluno/MeuProtocolo';
+import AlunoHome from './pages/aluno/Home';
+import AlunoTreino from './pages/aluno/Treino';
+import TreinoExecucao from './pages/aluno/TreinoExecucao';
+import AlunoDieta from './pages/aluno/Dieta';
+import RefeicaoDetalhe from './pages/aluno/RefeicaoDetalhe';
+import AlunoPerfil from './pages/aluno/Perfil';
 
 function AdminShell() {
   return (
@@ -42,9 +46,13 @@ function AlunoShell() {
   return (
     <div className="min-h-screen bg-surface">
       <Routes>
-        <Route path="perfil" element={<Perfil />} />
-        <Route path="protocolo/:id" element={<MeuProtocolo />} />
-        <Route path="*" element={<Navigate to="perfil" replace />} />
+        <Route path="home" element={<AlunoHome />} />
+        <Route path="treino" element={<AlunoTreino />} />
+        <Route path="treino/:protocoloId/:treinoId" element={<TreinoExecucao />} />
+        <Route path="dieta" element={<AlunoDieta />} />
+        <Route path="dieta/:refeicaoId" element={<RefeicaoDetalhe />} />
+        <Route path="perfil" element={<AlunoPerfil />} />
+        <Route path="*" element={<Navigate to="home" replace />} />
       </Routes>
     </div>
   );

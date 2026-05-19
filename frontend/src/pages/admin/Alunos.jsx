@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { useToast, errorMessage } from '../../components/ui/Toast';
@@ -11,6 +11,14 @@ import { SkeletonTabela } from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
 
 const LIMIT = 20;
+
+const FILTROS = [
+  { v: 'todos',        l: 'Todos' },
+  { v: 'em_dia',       l: 'Em dia' },
+  { v: 'inadimplente', l: 'Inadimplentes' },
+  { v: 'neutro',       l: 'Sem fatura' },
+  { v: 'inativo',      l: 'Inativos' },
+];
 
 function iniciais(nome) {
   if (!nome) return '?';
@@ -84,13 +92,7 @@ export default function Alunos() {
           />
         </div>
         <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 md:overflow-visible md:mx-0 md:px-0">
-          {[
-            { v: 'todos', l: 'Todos' },
-            { v: 'em_dia', l: 'Em dia' },
-            { v: 'inadimplente', l: 'Inadimplentes' },
-            { v: 'neutro', l: 'Sem fatura' },
-            { v: 'inativo', l: 'Inativos' },
-          ].map((opt) => (
+          {FILTROS.map((opt) => (
             <button
               key={opt.v}
               onClick={() => { setFiltroStatus(opt.v); setPage(1); }}
@@ -244,7 +246,7 @@ function CreateAlunoModal({ open, onClose, onCreated }) {
     dias_tolerancia: 7, periodicidade_dias: 30,
   });
 
-  function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+  const set = useCallback((k, v) => setForm((f) => ({ ...f, [k]: v })), []);
 
   async function submit(e) {
     e.preventDefault();

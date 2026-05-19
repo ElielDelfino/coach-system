@@ -187,9 +187,9 @@ function CardioModal({ open, onClose, cId, onSaved }) {
     >
       <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Tipo *"><Input value={form.tipo || ''} onChange={(e) => setForm({ ...form, tipo: e.target.value })} placeholder="corrida, bike…" /></Field>
+          <Field label="Tipo *"><Input value={form.tipo || ''} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))} placeholder="corrida, bike…" /></Field>
           <Field label="Intensidade">
-            <select value={form.intensidade || 'moderada'} onChange={(e) => setForm({ ...form, intensidade: e.target.value })}
+            <select value={form.intensidade || 'moderada'} onChange={(e) => setForm((f) => ({ ...f, intensidade: e.target.value }))}
               className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm">
               <option value="leve">Leve</option>
               <option value="moderada">Moderada</option>
@@ -197,14 +197,14 @@ function CardioModal({ open, onClose, cId, onSaved }) {
               <option value="maxima">Máxima</option>
             </select>
           </Field>
-          <Field label="Duração (min)"><Input type="number" value={form.duracao_min ?? ''} onChange={(e) => setForm({ ...form, duracao_min: e.target.value })} /></Field>
-          <Field label="Gasto (kcal)"><Input type="number" step="0.1" value={form.gasto_calorico_estimado ?? ''} onChange={(e) => setForm({ ...form, gasto_calorico_estimado: e.target.value })} /></Field>
-          <Field label="Inclinação"><Input type="number" step="0.1" value={form.inclinacao ?? ''} onChange={(e) => setForm({ ...form, inclinacao: e.target.value })} /></Field>
-          <Field label="Velocidade (km/h)"><Input type="number" step="0.1" value={form.velocidade ?? ''} onChange={(e) => setForm({ ...form, velocidade: e.target.value })} /></Field>
+          <Field label="Duração (min)"><Input type="number" value={form.duracao_min ?? ''} onChange={(e) => setForm((f) => ({ ...f, duracao_min: e.target.value }))} /></Field>
+          <Field label="Gasto (kcal)"><Input type="number" step="0.1" value={form.gasto_calorico_estimado ?? ''} onChange={(e) => setForm((f) => ({ ...f, gasto_calorico_estimado: e.target.value }))} /></Field>
+          <Field label="Inclinação"><Input type="number" step="0.1" value={form.inclinacao ?? ''} onChange={(e) => setForm((f) => ({ ...f, inclinacao: e.target.value }))} /></Field>
+          <Field label="Velocidade (km/h)"><Input type="number" step="0.1" value={form.velocidade ?? ''} onChange={(e) => setForm((f) => ({ ...f, velocidade: e.target.value }))} /></Field>
         </div>
         <Field label="Observações">
           <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm resize-none"
-            value={form.observacoes || ''} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} />
+            value={form.observacoes || ''} onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))} />
         </Field>
       </div>
     </Modal>

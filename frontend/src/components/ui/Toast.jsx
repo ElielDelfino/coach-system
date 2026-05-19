@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import clsx from 'clsx';
 
 const ToastContext = createContext(null);
@@ -12,11 +12,13 @@ export function ToastProvider({ children }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
   }, []);
 
-  const api = {
+  // useMemo garante referência estável — evita que useCallback/useEffect de todo o app
+  // se invalidem toda vez que um toast aparece ou some.
+  const api = useMemo(() => ({
     success: (m) => push('success', m),
     error: (m) => push('error', m),
     info: (m) => push('info', m),
-  };
+  }), [push]);
 
   return (
     <ToastContext.Provider value={api}>

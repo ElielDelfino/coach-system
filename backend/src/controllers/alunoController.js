@@ -80,6 +80,15 @@ async function createFoto(req, res) {
   try {
     const aluno_id = req.user.aluno_id;
     if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+
+    const liberado = await pool.query(
+      `SELECT envio_fotos_liberado FROM alunos WHERE id = $1`,
+      [aluno_id]
+    );
+    if (!liberado.rows[0]?.envio_fotos_liberado) {
+      return res.status(403).json({ message: 'Envio de fotos não liberado pelo professor.' });
+    }
+
     const { posicao } = req.body || {};
     if (!req.file) {
       return res.status(400).json({ message: 'Arquivo foto é obrigatório.' });

@@ -209,6 +209,19 @@ async function deleteFoto(req, res) {
   }
 }
 
+async function liberarFotos(req, res) {
+  try {
+    const aluno = await alunoModel.findById(req.params.id);
+    if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
+    const liberado = !!req.body?.liberado;
+    await alunoModel.setEnvioFotosLiberado(req.params.id, liberado);
+    return res.json({ message: liberado ? 'Envio de fotos liberado.' : 'Envio de fotos bloqueado.', envio_fotos_liberado: liberado });
+  } catch (err) {
+    console.error('[admin/liberarFotos]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 // ─── pagamentos ───────────────────────────────────────────────────────────────
 
 async function listPagamentos(req, res) {
@@ -315,7 +328,6 @@ async function updateFatura(req, res) {
     }
     const result = await alunoModel.updateFatura(req.params.id, req.body);
     if (result.notFound) return res.status(404).json({ message: 'Fatura não encontrada.' });
-    if (result.jaPago) return res.status(400).json({ message: 'Fatura já baixada não pode ser editada.' });
     return res.json({ message: 'Fatura atualizada.', fatura: result.fatura });
   } catch (err) {
     console.error('[admin/updateFatura]', err);
@@ -347,7 +359,6 @@ async function deleteFatura(req, res) {
   try {
     const result = await alunoModel.deleteFatura(req.params.id);
     if (result.notFound) return res.status(404).json({ message: 'Fatura não encontrada.' });
-    if (result.jaPago) return res.status(400).json({ message: 'Não é possível remover fatura já paga.' });
     return res.json({ message: 'Fatura removida.' });
   } catch (err) {
     console.error('[admin/deleteFatura]', err);
@@ -711,6 +722,17 @@ async function desativarProtocolo(req, res) {
   }
 }
 
+async function deleteProtocolo(req, res) {
+  try {
+    const rows = await alunoModel.deleteProtocolo(req.params.id);
+    if (!rows) return res.status(404).json({ message: 'Protocolo não encontrado.' });
+    return res.json({ message: 'Protocolo removido.' });
+  } catch (err) {
+    console.error('[admin/deleteProtocolo]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 // ─── refeicoes ────────────────────────────────────────────────────────────────
 
 async function listRefeicoes(req, res) {
@@ -911,6 +933,17 @@ async function deleteTreino(req, res) {
     return res.json({ message: 'Treino removido.' });
   } catch (err) {
     console.error('[admin/deleteTreino]', err);
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function duplicarTreino(req, res) {
+  try {
+    const novo = await alunoModel.duplicarTreino(req.params.id, req.body || {});
+    return res.status(201).json(novo);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Treino não encontrado.' });
+    console.error('[admin/duplicarTreino]', err);
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -1245,7 +1278,7 @@ module.exports = {
   listAlunos, createAluno, getAluno, updateAluno, ativarAluno, desativarAluno,
   redefinirSenhaAluno,
   listMedidas, createMedida, getMedida, updateMedida, deleteMedida,
-  listFotos, deleteFoto,
+  listFotos, deleteFoto, liberarFotos,
   listPagamentos, listPagamentosAluno, createPagamento,
   listFaturasAluno, createFatura, updateFatura, darBaixaFatura, deleteFatura,
   listExercicios, createExercicio, getExercicio, updateExercicio, ativarExercicio, desativarExercicio,
@@ -1253,11 +1286,11 @@ module.exports = {
   listAlimentos, createAlimento, getAlimento, updateAlimento, ativarAlimento, desativarAlimento,
   uploadFotoAlimento,
   listCardio, createCardio, getCardio, updateCardio, desativarCardio,
-  listProtocolos, createProtocolo, getProtocolo, updateProtocolo, ativarProtocolo, desativarProtocolo,
+  listProtocolos, createProtocolo, getProtocolo, updateProtocolo, ativarProtocolo, desativarProtocolo, deleteProtocolo,
   listRefeicoes, createRefeicao, duplicarRefeicao, updateRefeicao, deleteRefeicao,
   createRefeicaoItem, updateRefeicaoItem, deleteRefeicaoItem, reordenarItens,
   createSubstituto, deleteSubstituto,
-  listTreinos, createTreino, updateTreino, deleteTreino,
+  listTreinos, createTreino, updateTreino, deleteTreino, duplicarTreino,
   createTreinoExercicio, updateTreinoExercicio, deleteTreinoExercicio, reordenarTreinoExercicios,
   listSuplementacao, createSuplemento, updateSuplemento, deleteSuplemento,
   enviarProtocoloPdf, baixarProtocoloPdf,

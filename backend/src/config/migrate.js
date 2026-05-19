@@ -109,6 +109,24 @@ async function migrate() {
             CHECK (video_tipo IN ('s3', 'youtube'))
       `);
 
+      // M011: meta de água diária no protocolo
+      await client.query(`
+        ALTER TABLE protocolos
+          ADD COLUMN IF NOT EXISTS meta_agua_litros NUMERIC(4,1) DEFAULT 2.5
+      `);
+
+      // M012: controle de liberação de envio de fotos por aluno
+      await client.query(`
+        ALTER TABLE alunos
+          ADD COLUMN IF NOT EXISTS envio_fotos_liberado BOOLEAN DEFAULT false
+      `);
+
+      // M013: flag de protocolo finalizado (distinto de inativo)
+      await client.query(`
+        ALTER TABLE protocolos
+          ADD COLUMN IF NOT EXISTS finalizado BOOLEAN NOT NULL DEFAULT false
+      `);
+
       console.log('[migrate] Migrações incrementais aplicadas.');
     }
 

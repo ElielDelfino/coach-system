@@ -296,15 +296,15 @@ function AlimentoModal({ open, onClose, alId, onSaved }) {
     >
       <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Nome *"><Input value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} /></Field>
-          <Field label="Categoria"><Input value={form.categoria || ''} onChange={(e) => setForm({ ...form, categoria: e.target.value })} /></Field>
+          <Field label="Nome *"><Input value={form.nome || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, nome: v })); }} /></Field>
+          <Field label="Categoria"><Input value={form.categoria || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, categoria: v })); }} /></Field>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Quantidade base">
-            <Input type="number" step="0.01" value={form.quantidade_base ?? ''} onChange={(e) => setForm({ ...form, quantidade_base: e.target.value })} />
+            <Input type="number" step="0.01" value={form.quantidade_base ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, quantidade_base: v })); }} />
           </Field>
           <Field label="Unidade">
-            <select value={form.unidade || 'gramas'} onChange={(e) => setForm({ ...form, unidade: e.target.value })}
+            <select value={form.unidade || 'gramas'} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, unidade: v })); }}
               className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm">
               {UNIDADES.map((u) => <option key={u.v} value={u.v}>{u.l}</option>)}
             </select>
@@ -312,15 +312,15 @@ function AlimentoModal({ open, onClose, alId, onSaved }) {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Field label="Kcal *"><Input type="number" step="0.1" value={form.calorias ?? ''} onChange={(e) => setForm({ ...form, calorias: e.target.value })} /></Field>
-          <Field label="Prot. *"><Input type="number" step="0.1" value={form.proteinas ?? ''} onChange={(e) => setForm({ ...form, proteinas: e.target.value })} /></Field>
-          <Field label="Carb. *"><Input type="number" step="0.1" value={form.carboidratos ?? ''} onChange={(e) => setForm({ ...form, carboidratos: e.target.value })} /></Field>
-          <Field label="Gord. *"><Input type="number" step="0.1" value={form.gorduras ?? ''} onChange={(e) => setForm({ ...form, gorduras: e.target.value })} /></Field>
+          <Field label="Kcal *"><Input type="number" step="0.1" value={form.calorias ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, calorias: v })); }} /></Field>
+          <Field label="Prot. *"><Input type="number" step="0.1" value={form.proteinas ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, proteinas: v })); }} /></Field>
+          <Field label="Carb. *"><Input type="number" step="0.1" value={form.carboidratos ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, carboidratos: v })); }} /></Field>
+          <Field label="Gord. *"><Input type="number" step="0.1" value={form.gorduras ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, gorduras: v })); }} /></Field>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Fibra"><Input type="number" step="0.1" value={form.fibra ?? ''} onChange={(e) => setForm({ ...form, fibra: e.target.value })} /></Field>
-          <Field label="Sódio (mg)"><Input type="number" step="0.1" value={form.sodio ?? ''} onChange={(e) => setForm({ ...form, sodio: e.target.value })} /></Field>
+          <Field label="Fibra"><Input type="number" step="0.1" value={form.fibra ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, fibra: v })); }} /></Field>
+          <Field label="Sódio (mg)"><Input type="number" step="0.1" value={form.sodio ?? ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, sodio: v })); }} /></Field>
         </div>
 
         <div>

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   LineChart, Line, AreaChart, Area, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
@@ -14,6 +13,7 @@ import Modal from '../../components/ui/Modal';
 import ImageUpload from '../../components/ImageUpload';
 import PageLoader from '../../components/ui/PageLoader';
 import EmptyState from '../../components/ui/EmptyState';
+import AlunoLayout from './AlunoLayout';
 
 const TABS = [
   { id: 'perfil',   label: 'Meu Perfil' },
@@ -106,7 +106,11 @@ export default function Perfil() {
   }, [activeTab, fotos, toast]);
 
   if (loadingBase || !perfil) {
-    return <PageLoader mensagem="Carregando seu perfil..." />;
+    return (
+      <AlunoLayout paginaAtiva="perfil">
+        <PageLoader mensagem="Carregando seu perfil..." />
+      </AlunoLayout>
+    );
   }
 
   const inadimplente = perfil.status === 'inadimplente';
@@ -116,79 +120,83 @@ export default function Perfil() {
     .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))[0];
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-10 space-y-5 md:space-y-6">
-      <header className="flex items-start justify-between flex-wrap gap-4">
-        <div className="inline-flex items-center gap-2">
-          <span className="text-2xl font-black tracking-tight text-white">COACH</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-brand mt-2" />
-          <span className="text-2xl font-black tracking-tight text-white">SYS</span>
-        </div>
-        <button onClick={logout} className="text-[11px] uppercase tracking-widest font-bold text-zinc-500 hover:text-brand">
-          Sair
-        </button>
-      </header>
-
-      {inadimplente && (
-        <div className="bg-red-950 border border-red-900 text-red-300 rounded-lg px-5 py-3 text-sm">
-          <span className="font-bold uppercase tracking-widest text-xs text-red-400">Atenção</span>
-          <span className="ml-2">Você possui faturas vencidas. Procure o seu coach.</span>
-        </div>
-      )}
-
-      <div className="flex gap-1 border-b border-surface-border overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap">
-        {TABS.map((t) => (
+    <AlunoLayout paginaAtiva="perfil">
+      <div className="px-4 pt-6 pb-4 space-y-5">
+        <header className="flex items-center justify-between">
+          <h1 className="text-3xl font-black text-white tracking-tight">Perfil</h1>
           <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={
-              'px-4 py-3 md:py-2.5 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ' +
-              (activeTab === t.id
-                ? 'text-brand border-brand'
-                : 'text-zinc-500 border-transparent hover:text-white')
-            }
+            onClick={logout}
+            className="text-[11px] uppercase tracking-widest font-bold text-zinc-500 hover:text-brand"
           >
-            {t.label}
+            Sair
           </button>
-        ))}
+        </header>
+
+        {inadimplente && (
+          <div className="bg-red-950 border border-red-900 text-red-300 rounded-lg px-5 py-3 text-sm">
+            <span className="font-bold uppercase tracking-widest text-xs text-red-400">Atenção</span>
+            <span className="ml-2">Você possui faturas vencidas. Procure o seu coach.</span>
+          </div>
+        )}
+
+        <div className="overflow-x-auto scrollbar-none border-b border-surface-border -mx-4 px-4">
+          <div className="flex min-w-max gap-1">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={
+                  'px-4 py-3 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ' +
+                  (activeTab === t.id
+                    ? 'text-brand border-brand'
+                    : 'text-zinc-500 border-transparent hover:text-white')
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activeTab === 'perfil' && (
+          <TabPerfil
+            perfil={perfil}
+            protocoloAtivo={protocoloAtivo}
+            proximaPendente={proximaPendente}
+            onAbrirFotos={() => { setActiveTab('fotos'); }}
+          />
+        )}
+
+        {activeTab === 'medidas' && (
+          <TabMedidas medidas={medidas} evolucao={evolucao} loading={loadingMedidas} />
+        )}
+
+        {activeTab === 'fotos' && (
+          <TabFotos fotos={fotos} loading={loadingFotos} onReload={reloadFotos} perfil={perfil} />
+        )}
+
+        {activeTab === 'faturas' && (
+          <TabFaturas faturas={faturas} />
+        )}
       </div>
-
-      {activeTab === 'perfil' && (
-        <TabPerfil
-          perfil={perfil}
-          protocoloAtivo={protocoloAtivo}
-          proximaPendente={proximaPendente}
-        />
-      )}
-
-      {activeTab === 'medidas' && (
-        <TabMedidas medidas={medidas} evolucao={evolucao} loading={loadingMedidas} />
-      )}
-
-      {activeTab === 'fotos' && (
-        <TabFotos fotos={fotos} loading={loadingFotos} onReload={reloadFotos} />
-      )}
-
-      {activeTab === 'faturas' && (
-        <TabFaturas faturas={faturas} />
-      )}
-    </div>
+    </AlunoLayout>
   );
 }
 
-function TabPerfil({ perfil, protocoloAtivo, proximaPendente }) {
+function TabPerfil({ perfil, protocoloAtivo, proximaPendente, onAbrirFotos }) {
   return (
     <div className="space-y-6">
-      <Card className="p-6">
+      <Card className="p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
+          <div className="min-w-0">
             <div className="text-section-label">Aluno</div>
-            <h1 className="text-page-title mt-1">{perfil.nome}</h1>
-            <div className="text-zinc-400 text-sm mt-0.5">{perfil.email}</div>
+            <h2 className="text-xl font-black text-white tracking-tight mt-1 truncate">{perfil.nome}</h2>
+            <div className="text-zinc-400 text-sm mt-0.5 truncate">{perfil.email}</div>
           </div>
           <StatusBadge status={perfil.status} />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 border-t border-surface-border pt-5">
+        <div className="grid grid-cols-2 gap-4 mt-5 border-t border-surface-border pt-5">
           <Info label="Próximo vencimento" value={formatDate(proximaPendente?.data_vencimento)} />
           <Info label="Telefone" value={perfil.telefone} />
           <Info label="Nascimento" value={formatDate(perfil.data_nascimento)} />
@@ -204,18 +212,33 @@ function TabPerfil({ perfil, protocoloAtivo, proximaPendente }) {
 
       {protocoloAtivo && (
         <Card className="p-5 border-brand/40 bg-brand/5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-section-label">Protocolo ativo</div>
-              <h2 className="text-xl font-black text-white mt-1">{protocoloAtivo.nome}</h2>
-              <div className="text-xs text-zinc-400 uppercase tracking-widest">{protocoloAtivo.fase}</div>
-            </div>
-            <Link to={`/aluno/protocolo/${protocoloAtivo.id}`}>
-              <Button>Ver protocolo →</Button>
-            </Link>
-          </div>
+          <div className="text-section-label">Protocolo ativo</div>
+          <h2 className="text-xl font-black text-white mt-1">{protocoloAtivo.nome}</h2>
+          <div className="text-xs text-zinc-400 uppercase tracking-widest">{protocoloAtivo.fase}</div>
         </Card>
       )}
+
+      <div>
+        <h2 className="text-2xl font-black text-white mb-1">Fotos de atualização</h2>
+        <p className="text-zinc-500 text-sm mb-4">
+          Tire as fotos sempre com o mesmo ângulo e a mesma luz.
+        </p>
+        {perfil.envio_fotos_liberado ? (
+          <button
+            onClick={onAbrirFotos}
+            className="w-full flex items-center justify-center gap-4 bg-brand text-white
+              font-black text-base py-4 px-6 rounded-2xl hover:bg-brand-dark transition-colors"
+          >
+            <span className="text-2xl">⬆</span>
+            Enviar fotos
+          </button>
+        ) : (
+          <div className="w-full bg-surface-elevated border border-surface-border
+            rounded-2xl py-4 px-6 text-center">
+            <p className="text-zinc-500 text-sm">Envio de fotos não liberado pelo professor.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -485,7 +508,7 @@ function formatDataExtenso(data) {
   } catch { return data; }
 }
 
-function TabFotos({ fotos, loading, onReload }) {
+function TabFotos({ fotos, loading, onReload, perfil }) {
   const [openSend, setOpenSend] = useState(false);
 
   if (loading || fotos === null) {
@@ -493,19 +516,28 @@ function TabFotos({ fotos, loading, onReload }) {
   }
 
   const blocos = Array.isArray(fotos) ? fotos : [];
+  const liberado = !!perfil?.envio_fotos_liberado;
 
   return (
     <div className="space-y-5">
       <div className="flex justify-end">
-        <Button onClick={() => setOpenSend(true)}>+ Enviar novas fotos</Button>
+        {liberado ? (
+          <Button onClick={() => setOpenSend(true)}>+ Enviar novas fotos</Button>
+        ) : (
+          <span className="text-xs text-zinc-500 italic">
+            🔒 Envio bloqueado pelo professor
+          </span>
+        )}
       </div>
 
       {blocos.length === 0 && (
         <EmptyState
           icone="📷"
           titulo="Nenhuma foto enviada"
-          descricao="Envie suas fotos de progresso para acompanhar sua evolução."
-          acao={<Button onClick={() => setOpenSend(true)}>Enviar fotos</Button>}
+          descricao={liberado
+            ? 'Envie suas fotos de progresso para acompanhar sua evolução.'
+            : 'Aguarde o professor liberar o envio de fotos.'}
+          acao={liberado ? <Button onClick={() => setOpenSend(true)}>Enviar fotos</Button> : null}
         />
       )}
 
@@ -545,48 +577,70 @@ function TabFotos({ fotos, loading, onReload }) {
 
 function EnviarFotosModal({ open, onClose, onSent }) {
   const toast = useToast();
-  const [enviadas, setEnviadas] = useState({});
+  const [previews, setPreviews] = useState({});
+  const [arquivos, setArquivos] = useState({});
+  const [enviando, setEnviando] = useState(false);
 
   function reset() {
-    setEnviadas({});
-  }
-
-  async function uploadFoto(posicao, file) {
-    const formData = new FormData();
-    formData.append('foto', file);
-    formData.append('posicao', posicao);
-    try {
-      const res = await api.post('/aluno/fotos', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setEnviadas((prev) => ({ ...prev, [posicao]: res.data.url }));
-      toast.success(`Foto ${posicao} enviada.`);
-    } catch (err) {
-      toast.error(errorMessage(err));
-      throw err;
-    }
+    setPreviews({});
+    setArquivos({});
   }
 
   function fechar() {
-    const teveEnvio = Object.keys(enviadas).length > 0;
     reset();
     onClose();
-    if (teveEnvio) onSent();
   }
+
+  function selecionarFoto(posicao, file) {
+    setPreviews((p) => ({ ...p, [posicao]: URL.createObjectURL(file) }));
+    setArquivos((a) => ({ ...a, [posicao]: file }));
+  }
+
+  async function confirmarEnvioFotos() {
+    if (Object.keys(arquivos).length === 0) return;
+    setEnviando(true);
+    try {
+      await Promise.all(
+        Object.entries(arquivos).map(([posicao, file]) => {
+          const formData = new FormData();
+          formData.append('foto', file);
+          formData.append('posicao', posicao);
+          return api.post('/aluno/fotos', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        })
+      );
+      toast.success('Fotos enviadas com sucesso!');
+      reset();
+      onClose();
+      onSent?.();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const total = Object.keys(arquivos).length;
 
   return (
     <Modal
       open={open}
       onClose={fechar}
-      title="Enviar novas fotos"
+      title="Enviar fotos de hoje"
       size="lg"
       footer={<>
-        <Button variant="ghost" onClick={fechar}>Fechar</Button>
+        <Button variant="ghost" onClick={fechar}>Cancelar</Button>
+        <Button onClick={confirmarEnvioFotos} disabled={total === 0 || enviando}>
+          {enviando
+            ? 'Enviando…'
+            : `Confirmar envio (${total} foto${total !== 1 ? 's' : ''})`}
+        </Button>
       </>}
     >
       <div className="space-y-3">
         <div className="text-xs text-zinc-500">
-          Cada foto é enviada na hora que você seleciona. Não é obrigatório enviar todas — envie as que tiver hoje.
+          Selecione as fotos antes de confirmar. Não é obrigatório enviar todas — envie as que tiver hoje.
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {POSICOES.map((pos) => (
@@ -596,8 +650,8 @@ function EnviarFotosModal({ open, onClose, onSent }) {
                 label={`Selecione a foto: ${pos.label}`}
                 accept="image/jpeg,image/png,image/webp"
                 maxMB={15}
-                preview={enviadas[pos.id]}
-                onUpload={(file) => uploadFoto(pos.id, file)}
+                preview={previews[pos.id]}
+                onUpload={(file) => selecionarFoto(pos.id, file)}
               />
             </div>
           ))}

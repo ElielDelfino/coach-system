@@ -80,6 +80,7 @@ async function findById(id) {
     `SELECT a.id, a.user_id, a.nome, u.email, a.telefone, a.data_nascimento, a.sexo,
             a.objetivo, a.restricoes, a.lesoes, a.observacoes, a.ativo,
             a.dias_tolerancia, a.periodicidade_dias,
+            a.envio_fotos_liberado,
             a.created_at, a.updated_at,
             ${STATUS_SQL} AS status,
             (SELECT to_jsonb(am.*)
@@ -446,7 +447,6 @@ async function findFaturaById(id) {
 async function updateFatura(id, body) {
   const fatura = await findFaturaById(id);
   if (!fatura) return { notFound: true };
-  if (fatura.status === 'pago') return { jaPago: true };
 
   const params = [id];
   const fields = [];
@@ -461,11 +461,15 @@ async function updateFatura(id, body) {
   if ('desconto_tipo' in body)   addField('desconto_tipo', body.desconto_tipo ?? null);
   if ('desconto_valor' in body)  addField('desconto_valor', body.desconto_valor ?? null);
 
-  // recalcula status com base no vencimento efetivo
-  const effectiveVenc = ('data_vencimento' in body ? body.data_vencimento : null) || fatura.data_vencimento;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  addField('status', new Date(effectiveVenc) >= hoje ? 'pendente' : 'vencido');
+  // recalcula status com base no vencimento efetivo — mantém 'pago' se já estava pago
+  if (fatura.status === 'pago') {
+    addField('status', 'pago');
+  } else {
+    const effectiveVenc = ('data_vencimento' in body ? body.data_vencimento : null) || fatura.data_vencimento;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    addField('status', new Date(effectiveVenc) >= hoje ? 'pendente' : 'vencido');
+  }
 
   const { rows } = await pool.query(
     `UPDATE faturas SET ${fields.join(', ')} WHERE id = $1
@@ -502,7 +506,6 @@ async function darBaixaFatura(id, { data_baixa, metodo_baixa, observacoes }) {
 async function deleteFatura(id) {
   const fatura = await findFaturaById(id);
   if (!fatura) return { notFound: true };
-  if (fatura.status === 'pago') return { jaPago: true };
 
   await pool.query(`DELETE FROM faturas WHERE id = $1`, [id]);
   return { ok: true };
@@ -761,8 +764,9 @@ async function setCardioAtivo(id, ativo) {
 
 async function findProtocolos(aluno_id) {
   const { rows } = await pool.query(
-    `SELECT id, nome, objetivo, fase, data_inicio, data_fim, ativo,
-            modulo_alimentar, modulo_treino, modulo_cardio, modulo_suplementacao
+    `SELECT id, nome, objetivo, fase, data_inicio, data_fim, ativo, finalizado,
+            modulo_alimentar, modulo_treino, modulo_cardio, modulo_suplementacao,
+            meta_agua_litros
      FROM protocolos WHERE aluno_id = $1 ORDER BY created_at DESC`,
     [aluno_id]
   );
@@ -794,7 +798,8 @@ async function createProtocolo(aluno_id, d) {
 
 async function updateProtocolo(id, d) {
   const allowed = ['nome','objetivo','fase','data_inicio','data_fim',
-    'modulo_alimentar','modulo_treino','modulo_cardio','modulo_suplementacao','observacoes'];
+    'modulo_alimentar','modulo_treino','modulo_cardio','modulo_suplementacao','observacoes',
+    'meta_agua_litros','ativo','finalizado'];
   const keys = allowed.filter((k) => d[k] !== undefined);
   if (!keys.length) return 0;
   const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
@@ -807,6 +812,13 @@ async function updateProtocolo(id, d) {
 async function setProtocoloAtivo(id, ativo) {
   const { rowCount } = await pool.query(
     `UPDATE protocolos SET ativo = $2 WHERE id = $1`, [id, ativo]
+  );
+  return rowCount;
+}
+
+async function deleteProtocolo(id) {
+  const { rowCount } = await pool.query(
+    `DELETE FROM protocolos WHERE id = $1`, [id]
   );
   return rowCount;
 }
@@ -1066,7 +1078,9 @@ async function findTreinos(protocolo_id) {
     `SELECT te.id, te.treino_id, te.tipo, te.exercicio_id, te.cardio_id,
             COALESCE(e.nome, c.tipo) AS nome_exercicio,
             te.series, te.repeticoes, te.descanso_seg, te.observacao,
-            te.ordem, te.grupo_superset
+            te.ordem, te.grupo_superset,
+            e.video_url, e.video_tipo, e.video_youtube_url,
+            e.observacoes_tecnicas, e.execucao_correta, e.execucao_errada
      FROM treino_exercicios te
      LEFT JOIN exercicios e ON e.id = te.exercicio_id
      LEFT JOIN cardio c ON c.id = te.cardio_id
@@ -1078,7 +1092,7 @@ async function findTreinos(protocolo_id) {
   const exByTreino = {};
   for (const ex of exRes.rows) {
     if (!exByTreino[ex.treino_id]) exByTreino[ex.treino_id] = [];
-    exByTreino[ex.treino_id].push(ex);
+    exByTreino[ex.treino_id].push(decorarExercicio(ex));
   }
 
   return trRes.rows.map((t) => ({ ...t, exercicios: exByTreino[t.id] || [] }));
@@ -1109,6 +1123,55 @@ async function updateTreino(id, { nome, ordem }) {
 async function deleteTreino(id) {
   const { rowCount } = await pool.query(`DELETE FROM treinos WHERE id = $1`, [id]);
   return rowCount;
+}
+
+async function duplicarTreino(id, { nome: nomeDestino } = {}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const trRes = await client.query(`SELECT * FROM treinos WHERE id = $1`, [id]);
+    if (!trRes.rows[0]) throw Object.assign(new Error('not_found'), { code: 'NOT_FOUND' });
+    const original = trRes.rows[0];
+
+    const { rows: maxRows } = await client.query(
+      `SELECT COALESCE(MAX(ordem), -1) + 1 AS proxima FROM treinos WHERE protocolo_id = $1`,
+      [original.protocolo_id]
+    );
+    const novaOrdem = maxRows[0].proxima;
+
+    const novoNome = (nomeDestino && nomeDestino.trim()) || `${original.nome} (cópia)`;
+
+    const novoTr = await client.query(
+      `INSERT INTO treinos (protocolo_id, nome, ordem)
+       VALUES ($1, $2, $3) RETURNING id, nome, ordem, created_at`,
+      [original.protocolo_id, novoNome, novaOrdem]
+    );
+    const novoTreinoId = novoTr.rows[0].id;
+
+    const exRes = await client.query(
+      `SELECT * FROM treino_exercicios WHERE treino_id = $1 ORDER BY ordem`, [id]
+    );
+    for (const ex of exRes.rows) {
+      await client.query(
+        `INSERT INTO treino_exercicios
+           (treino_id, tipo, exercicio_id, cardio_id, series, repeticoes,
+            descanso_seg, observacao, ordem, grupo_superset)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [novoTreinoId, ex.tipo, ex.exercicio_id, ex.cardio_id,
+         ex.series, ex.repeticoes, ex.descanso_seg, ex.observacao,
+         ex.ordem, ex.grupo_superset]
+      );
+    }
+
+    await client.query('COMMIT');
+    return novoTr.rows[0];
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 // ─── treino_exercicios ────────────────────────────────────────────────────────
@@ -1204,6 +1267,7 @@ async function findPerfil(user_id) {
     `SELECT a.id, a.nome, u.email, a.telefone, a.data_nascimento, a.sexo,
             a.objetivo, a.restricoes, a.lesoes, a.ativo,
             a.dias_tolerancia, a.periodicidade_dias,
+            a.envio_fotos_liberado,
             ${STATUS_SQL} AS status
      FROM alunos a
      JOIN users u ON u.id = a.user_id
@@ -1213,9 +1277,18 @@ async function findPerfil(user_id) {
   return rows[0] || null;
 }
 
+async function setEnvioFotosLiberado(aluno_id, liberado) {
+  const { rowCount } = await pool.query(
+    `UPDATE alunos SET envio_fotos_liberado = $2 WHERE id = $1`,
+    [aluno_id, !!liberado]
+  );
+  return rowCount;
+}
+
 module.exports = {
   // alunos
   findAll, findById, create, update, ativar, desativar, findPerfil,
+  setEnvioFotosLiberado,
   updateSenhaByAlunoId,
   // medidas
   findMedidas, createMedida, updateMedida, deleteMedida, findMedidaById,
@@ -1235,7 +1308,7 @@ module.exports = {
   // cardio
   findCardio, findCardioById, createCardio, updateCardio, setCardioAtivo,
   // protocolos
-  findProtocolos, findProtocoloById, createProtocolo, updateProtocolo, setProtocoloAtivo,
+  findProtocolos, findProtocoloById, createProtocolo, updateProtocolo, setProtocoloAtivo, deleteProtocolo,
   // refeicoes
   findRefeicoes, findRefeicaoById, createRefeicao, duplicarRefeicao,
   updateRefeicao, deleteRefeicao,
@@ -1244,7 +1317,7 @@ module.exports = {
   // substitutos
   createSubstituto, deleteSubstituto,
   // treinos
-  findTreinos, createTreino, updateTreino, deleteTreino,
+  findTreinos, createTreino, updateTreino, deleteTreino, duplicarTreino,
   // treino_exercicios
   createTreinoExercicio, updateTreinoExercicio, deleteTreinoExercicio, reordenarTreinoExercicios,
   // suplementacao

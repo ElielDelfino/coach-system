@@ -67,8 +67,8 @@ export default function ProtocoloBuilder() {
           <h1 className="text-base font-black text-white mt-2 truncate">{protocolo.nome}</h1>
           <div className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">{protocolo.fase}</div>
         </div>
-        <div className="overflow-x-auto border-t border-surface-border">
-          <div className="flex gap-1 px-3 py-2 min-w-max">
+        <div className="border-t border-surface-border">
+          <div className="flex flex-wrap gap-1 px-3 py-2">
             {MODULOS.map((m) => {
               const enabled = !m.flag || protocolo[m.flag];
               return (
@@ -126,6 +126,8 @@ export default function ProtocoloBuilder() {
             );
           })}
         </nav>
+
+        <HidratacaoCard protocolo={protocolo} onSaved={loadProtocolo} />
       </aside>
 
       {/* Conteúdo central */}
@@ -155,16 +157,16 @@ function ModuloAlimentar({ protocoloId }) {
     try {
       const res = await api.get(`/admin/protocolos/${protocoloId}/refeicoes`);
       setRefeicoes(res.data);
-      if (res.data.length && !refAtivaId) setRefAtivaId(res.data[0].id);
-      if (refAtivaId && !res.data.find((r) => r.id === refAtivaId)) {
-        setRefAtivaId(res.data[0]?.id || null);
-      }
+      setRefAtivaId((atual) => {
+        if (atual && res.data.find((r) => r.id === atual)) return atual;
+        return res.data[0]?.id || null;
+      });
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, [protocoloId, refAtivaId, toast]);
+  }, [protocoloId, toast]);
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [protocoloId]);
 
@@ -220,14 +222,14 @@ function ModuloAlimentar({ protocoloId }) {
         </header>
 
         {/* Tabs de refeições */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <div className="flex flex-wrap items-center gap-1.5 pb-1">
           {loading && <div className="text-zinc-500 text-sm">Carregando…</div>}
           {refeicoes.map((r) => (
             <button
               key={r.id}
               onClick={() => setRefAtivaId(r.id)}
               className={clsx(
-                'shrink-0 px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold transition-colors border',
+                'px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold transition-colors border whitespace-nowrap',
                 refAtivaId === r.id
                   ? 'bg-brand text-white border-brand'
                   : 'bg-surface-elevated text-zinc-400 border-surface-border hover:text-white'
@@ -238,7 +240,7 @@ function ModuloAlimentar({ protocoloId }) {
           ))}
           <button
             onClick={() => setOpenNova(true)}
-            className="shrink-0 px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold text-brand border-2 border-dashed border-brand/40 hover:bg-brand/10"
+            className="px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold text-brand border-2 border-dashed border-brand/40 hover:bg-brand/10 whitespace-nowrap"
           >
             + Nova
           </button>
@@ -295,7 +297,7 @@ function ModuloAlimentar({ protocoloId }) {
         onClose={() => setOpenNova(false)}
         protocoloId={protocoloId}
         proximoNumero={Math.max(0, ...refeicoes.map((r) => r.numero_refeicao)) + 1}
-        onCreated={() => { setOpenNova(false); load(); }}
+        onCreated={load}
       />
 
       <DuplicarRefeicaoModal
@@ -368,8 +370,8 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
         <div className="flex-1 min-w-0">
           {editing ? (
             <div className="grid grid-cols-2 gap-2">
-              <Input value={form.nome || ''} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-              <Input value={form.horario_sugerido || ''} onChange={(e) => setForm({ ...form, horario_sugerido: e.target.value })} placeholder="07:00" />
+              <Input value={form.nome || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, nome: v })); }} />
+              <Input value={form.horario_sugerido || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, horario_sugerido: v })); }} placeholder="07:00" />
             </div>
           ) : (
             <>
@@ -396,22 +398,23 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
         </div>
       </header>
 
-      <div className="overflow-x-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-section-label border-b border-surface-border">
-                <th className="text-left px-2 py-2 font-semibold w-6"></th>
-                <th className="text-left px-3 py-2 font-semibold">Alimento</th>
-                <th className="text-right px-3 py-2 font-semibold">Qtd (g)</th>
-                <th className="text-right px-3 py-2 font-semibold">Kcal</th>
-                <th className="text-right px-3 py-2 font-semibold">Prot</th>
-                <th className="text-right px-3 py-2 font-semibold">Carb</th>
-                <th className="text-right px-3 py-2 font-semibold">Gord</th>
-                <th className="text-right px-3 py-2 font-semibold w-28">Ações</th>
-              </tr>
-            </thead>
-            <SortableContext items={orderedItens.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={orderedItens.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          {/* Desktop: tabela */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-section-label border-b border-surface-border">
+                  <th className="text-left px-2 py-2 font-semibold w-6"></th>
+                  <th className="text-left px-3 py-2 font-semibold">Alimento</th>
+                  <th className="text-right px-3 py-2 font-semibold">Qtd (g)</th>
+                  <th className="text-right px-3 py-2 font-semibold">Kcal</th>
+                  <th className="text-right px-3 py-2 font-semibold">Prot</th>
+                  <th className="text-right px-3 py-2 font-semibold">Carb</th>
+                  <th className="text-right px-3 py-2 font-semibold">Gord</th>
+                  <th className="text-right px-3 py-2 font-semibold w-28">Ações</th>
+                </tr>
+              </thead>
               <tbody>
                 {orderedItens.length === 0 && (
                   <tr><td colSpan={8} className="text-center text-zinc-500 py-8">Nenhum item nesta refeição.</td></tr>
@@ -426,21 +429,53 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
                   />
                 ))}
               </tbody>
-            </SortableContext>
-            <tfoot>
-              <tr className="bg-surface-elevated border-t-2 border-surface-border">
-                <td colSpan={2} className="px-3 py-3 text-section-label">TOTAL</td>
-                <td className="px-3 py-3"></td>
-                <td className="px-3 py-3 text-right text-xl font-black text-brand tabular-nums">{fmt(refeicao.total_kcal)}</td>
-                <td className="px-3 py-3 text-right text-sky-400 tabular-nums">{fmt(refeicao.total_prot)}</td>
-                <td className="px-3 py-3 text-right text-amber-400 tabular-nums">{fmt(refeicao.total_carb)}</td>
-                <td className="px-3 py-3 text-right text-rose-400 tabular-nums">{fmt(refeicao.total_gord)}</td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-        </DndContext>
-      </div>
+              <tfoot>
+                <tr className="bg-surface-elevated border-t-2 border-surface-border">
+                  <td colSpan={2} className="px-3 py-3 text-section-label">TOTAL</td>
+                  <td className="px-3 py-3"></td>
+                  <td className="px-3 py-3 text-right text-xl font-black text-brand tabular-nums">{fmt(refeicao.total_kcal)}</td>
+                  <td className="px-3 py-3 text-right text-sky-400 tabular-nums">{fmt(refeicao.total_prot)}</td>
+                  <td className="px-3 py-3 text-right text-amber-400 tabular-nums">{fmt(refeicao.total_carb)}</td>
+                  <td className="px-3 py-3 text-right text-rose-400 tabular-nums">{fmt(refeicao.total_gord)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* Mobile: cards */}
+          <div className="md:hidden space-y-2">
+            {orderedItens.length === 0 && (
+              <div className="text-center text-zinc-500 py-8 text-sm border border-surface-border rounded-md">
+                Nenhum item nesta refeição.
+              </div>
+            )}
+            {orderedItens.map((item) => (
+              <ItemCard
+                key={item.id}
+                item={item}
+                refeicaoId={refeicao.id}
+                onChange={onChange}
+                onRemove={() => removerItem(item.id)}
+              />
+            ))}
+            {orderedItens.length > 0 && (
+              <div className="bg-surface-elevated border border-surface-border rounded-md p-3 mt-3">
+                <div className="text-section-label mb-2">Total da refeição</div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-black text-brand tabular-nums">{fmt(refeicao.total_kcal)}</span>
+                  <span className="text-[10px] uppercase tracking-widest text-zinc-500">kcal</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2 text-xs tabular-nums">
+                  <div className="text-sky-400">P {fmt(refeicao.total_prot)}</div>
+                  <div className="text-amber-400 text-center">C {fmt(refeicao.total_carb)}</div>
+                  <div className="text-rose-400 text-right">G {fmt(refeicao.total_gord)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       <div className="mt-4">
         <Button onClick={() => setOpenAddItem(true)}>+ Adicionar alimento</Button>
@@ -451,7 +486,7 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
         onClose={() => setOpenAddItem(false)}
         refeicaoId={refeicao.id}
         proximoOrdem={orderedItens.length}
-        onAdded={() => { setOpenAddItem(false); onChange(); }}
+        onAdded={onChange}
       />
     </Card>
   );
@@ -548,6 +583,96 @@ function ItemRow({ item, refeicaoId, onChange, onRemove }) {
   );
 }
 
+function ItemCard({ item, refeicaoId, onChange, onRemove }) {
+  const toast = useToast();
+  const [qtd, setQtd] = useState(item.quantidade_g);
+  const [showSubst, setShowSubst] = useState(false);
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  async function salvarQtd() {
+    if (Number(qtd) === Number(item.quantidade_g)) return;
+    try {
+      await api.put(`/admin/refeicoes/${refeicaoId}/itens/${item.id}`, { quantidade_g: Number(qtd) });
+      onChange();
+    } catch (err) {
+      toast.error(errorMessage(err));
+      setQtd(item.quantidade_g);
+    }
+  }
+
+  const subCount = item.substitutos?.length || 0;
+
+  return (
+    <div ref={setNodeRef} style={style} className="bg-surface-card border border-surface-border rounded-md p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 select-none text-lg leading-none shrink-0"
+          title="Arrastar para reordenar"
+        >
+          ⠿
+        </div>
+        <div className="font-semibold text-white flex-1 min-w-0 truncate">{item.nome_alimento}</div>
+        <button
+          onClick={onRemove}
+          title="Remover"
+          className="text-zinc-500 hover:text-red-400 text-sm px-2 py-0.5 border border-surface-border rounded shrink-0"
+        >
+          ×
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number" step="1"
+          className="w-24 text-right tabular-nums py-1 text-sm"
+          value={qtd}
+          onChange={(e) => setQtd(e.target.value)}
+          onBlur={salvarQtd}
+          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+        />
+        <span className="text-[10px] uppercase tracking-widest text-zinc-500">g</span>
+        <div className="ml-auto text-right">
+          <div className="text-base font-black text-brand tabular-nums leading-none">
+            {fmt(item.kcal_calculado)}
+            <span className="text-[10px] uppercase tracking-widest text-zinc-500 ml-1 font-normal">kcal</span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] tabular-nums">
+        <span className="text-sky-400">P {fmt(item.prot_calculado)}</span>
+        <span className="text-amber-400 text-center">C {fmt(item.carb_calculado)}</span>
+        <span className="text-rose-400 text-right">G {fmt(item.gord_calculado)}</span>
+      </div>
+      <div className="mt-2 flex justify-end">
+        <button
+          onClick={() => setShowSubst((s) => !s)}
+          className={clsx(
+            'text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border transition-colors',
+            subCount > 0
+              ? 'text-brand border-brand/40 hover:bg-brand/10'
+              : 'text-zinc-600 border-zinc-700 hover:text-zinc-400'
+          )}
+        >
+          {subCount > 0 ? `Sub (${subCount})` : 'Sub'}
+        </button>
+      </div>
+      {showSubst && (
+        <div className="mt-3 bg-surface-input border border-surface-border rounded-md p-3">
+          <SubstitutosPanel item={item} refeicaoId={refeicaoId} onChange={onChange} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SubstitutosPanel({ item, refeicaoId, onChange }) {
   const toast = useToast();
   const [busca, setBusca] = useState('');
@@ -570,7 +695,9 @@ function SubstitutosPanel({ item, refeicaoId, onChange }) {
       } catch (err) { toast.error(errorMessage(err)); }
     }, 300);
     return () => clearTimeout(t);
-  }, [busca, selected, toast]);
+    // toast é estável após a correção do ToastProvider (useMemo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca, selected]);
 
   function escolher(a) {
     setSelected(a);
@@ -683,32 +810,43 @@ function SubstitutosPanel({ item, refeicaoId, onChange }) {
 
 function AdicionarItemModal({ open, onClose, refeicaoId, proximoOrdem, onAdded }) {
   const toast = useToast();
+  const ordemRef = useRef(proximoOrdem);
+  useEffect(() => { ordemRef.current = proximoOrdem; }, [proximoOrdem]);
 
   async function adicionar(alimento, quantidade_g, observacoes) {
     try {
       await api.post(`/admin/refeicoes/${refeicaoId}/itens`, {
         alimento_id: alimento.id,
         quantidade_g: Number(quantidade_g),
-        ordem: proximoOrdem,
+        ordem: ordemRef.current,
         observacoes: observacoes || undefined,
       });
+      ordemRef.current += 1;
       toast.success('Item adicionado.');
       onAdded();
-    } catch (err) { toast.error(errorMessage(err)); }
+      return true;
+    } catch (err) {
+      toast.error(errorMessage(err));
+      return false;
+    }
   }
 
   return (
-    <BuscaAlimentoModal open={open} onClose={onClose} onSelect={adicionar} withObs />
+    <BuscaAlimentoModal open={open} onClose={onClose} onSelect={adicionar} withObs keepOpen />
   );
 }
 
-function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false }) {
+function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false, keepOpen = false }) {
   const toast = useToast();
   const [busca, setBusca] = useState('');
   const [data, setData] = useState([]);
   const [selected, setSelected] = useState(null);
   const [qtd, setQtd] = useState('');
   const [obs, setObs] = useState('');
+
+  function resetForm() {
+    setBusca(''); setSelected(null); setQtd(''); setObs('');
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -724,7 +862,9 @@ function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false }) {
       } catch (err) { toast.error(errorMessage(err)); }
     }, 250);
     return () => clearTimeout(t);
-  }, [open, busca, toast]);
+    // toast é estável após a correção do ToastProvider (useMemo) — não precisa ser dep
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, busca]);
 
   // Preview de macros (visual, não persistido — servidor é fonte da verdade)
   const preview = useMemo(() => {
@@ -738,10 +878,11 @@ function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false }) {
     };
   }, [selected, qtd]);
 
-  function confirmar() {
+  async function confirmar() {
     if (!selected) { toast.error('Selecione um alimento.'); return; }
     if (!qtd || Number(qtd) <= 0) { toast.error('Informe a quantidade.'); return; }
-    onSelect(selected, qtd, obs);
+    const result = await onSelect(selected, qtd, obs);
+    if (keepOpen && result !== false) resetForm();
   }
 
   return (
@@ -751,8 +892,10 @@ function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false }) {
       title="Buscar alimento"
       size="lg"
       footer={<>
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button onClick={confirmar} disabled={!selected || !qtd}>Adicionar</Button>
+        <Button variant="ghost" onClick={onClose}>{keepOpen ? 'Fechar' : 'Cancelar'}</Button>
+        <Button onClick={confirmar} disabled={!selected || !qtd}>
+          {keepOpen ? 'Adicionar e continuar' : 'Adicionar'}
+        </Button>
       </>}
     >
       <div className="space-y-3">
@@ -819,10 +962,17 @@ function NovaRefeicaoModal({ open, onClose, protocoloId, proximoNumero, onCreate
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ numero_refeicao: proximoNumero, nome: '', horario_sugerido: '' });
+  const numeroAtualRef = useRef(proximoNumero);
+
+  useEffect(() => { numeroAtualRef.current = proximoNumero; }, [proximoNumero]);
 
   useEffect(() => {
-    if (open) setForm({ numero_refeicao: proximoNumero, nome: '', horario_sugerido: '' });
-  }, [open, proximoNumero]);
+    if (open) {
+      numeroAtualRef.current = proximoNumero;
+      setForm({ numero_refeicao: proximoNumero, nome: '', horario_sugerido: '' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   async function salvar() {
     if (!form.nome || !form.numero_refeicao) { toast.error('Número e nome são obrigatórios.'); return; }
@@ -835,6 +985,9 @@ function NovaRefeicaoModal({ open, onClose, protocoloId, proximoNumero, onCreate
         ordem: form.numero_refeicao - 1,
       });
       toast.success('Refeição criada.');
+      const proximo = Number(form.numero_refeicao) + 1;
+      numeroAtualRef.current = proximo;
+      setForm({ numero_refeicao: proximo, nome: '', horario_sugerido: '' });
       onCreated();
     } catch (err) { toast.error(errorMessage(err)); }
     finally { setSaving(false); }
@@ -844,22 +997,22 @@ function NovaRefeicaoModal({ open, onClose, protocoloId, proximoNumero, onCreate
     <Modal
       open={open} onClose={onClose} title="Nova refeição"
       footer={<>
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Criar'}</Button>
+        <Button variant="ghost" onClick={onClose}>Fechar</Button>
+        <Button onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Criar e continuar'}</Button>
       </>}
     >
       <div className="grid grid-cols-3 gap-3">
         <Field label="Número *">
-          <Input type="number" value={form.numero_refeicao} onChange={(e) => setForm({ ...form, numero_refeicao: e.target.value })} />
+          <Input type="number" value={form.numero_refeicao} onChange={(e) => setForm((f) => ({ ...f, numero_refeicao: e.target.value }))} />
         </Field>
         <div className="col-span-2">
           <Field label="Nome *">
-            <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="Café da manhã, almoço…" />
+            <Input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} placeholder="Café da manhã, almoço…" />
           </Field>
         </div>
         <div className="col-span-3">
           <Field label="Horário sugerido">
-            <Input value={form.horario_sugerido} onChange={(e) => setForm({ ...form, horario_sugerido: e.target.value })} placeholder="07:00" />
+            <Input value={form.horario_sugerido} onChange={(e) => setForm((f) => ({ ...f, horario_sugerido: e.target.value }))} placeholder="07:00" />
           </Field>
         </div>
       </div>
@@ -914,14 +1067,18 @@ function ModuloTreino({ protocoloId }) {
   const [treinos, setTreinos] = useState([]);
   const [treinoAtivoId, setTreinoAtivoId] = useState(null);
   const [openNovo, setOpenNovo] = useState(false);
+  const [openDuplicar, setOpenDuplicar] = useState(null);
 
   const load = useCallback(async () => {
     try {
       const res = await api.get(`/admin/protocolos/${protocoloId}/treinos`);
       setTreinos(res.data);
-      if (res.data.length && !treinoAtivoId) setTreinoAtivoId(res.data[0].id);
+      setTreinoAtivoId((atual) => {
+        if (atual && res.data.find((t) => t.id === atual)) return atual;
+        return res.data[0]?.id || null;
+      });
     } catch (err) { toast.error(errorMessage(err)); }
-  }, [protocoloId, treinoAtivoId, toast]);
+  }, [protocoloId, toast]);
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [protocoloId]);
 
@@ -947,13 +1104,13 @@ function ModuloTreino({ protocoloId }) {
         </p>
       </header>
 
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      <div className="flex flex-wrap items-center gap-1.5 pb-1">
         {treinos.map((t) => (
           <button
             key={t.id}
             onClick={() => setTreinoAtivoId(t.id)}
             className={clsx(
-              'shrink-0 px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold border transition-colors',
+              'px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold border transition-colors whitespace-nowrap',
               treinoAtivoId === t.id
                 ? 'bg-brand text-white border-brand'
                 : 'bg-surface-elevated text-zinc-400 border-surface-border hover:text-white'
@@ -964,14 +1121,19 @@ function ModuloTreino({ protocoloId }) {
         ))}
         <button
           onClick={() => setOpenNovo(true)}
-          className="shrink-0 px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold text-brand border-2 border-dashed border-brand/40 hover:bg-brand/10"
+          className="px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold text-brand border-2 border-dashed border-brand/40 hover:bg-brand/10 whitespace-nowrap"
         >
           + Novo
         </button>
       </div>
 
       {treinoAtivo ? (
-        <TreinoEditor treino={treinoAtivo} onChange={load} onDelete={() => removerTreino(treinoAtivo.id)} />
+        <TreinoEditor
+          treino={treinoAtivo}
+          onChange={load}
+          onDuplicate={() => setOpenDuplicar(treinoAtivo)}
+          onDelete={() => removerTreino(treinoAtivo.id)}
+        />
       ) : (
         <Card className="p-10 text-center text-zinc-500 text-sm">
           Crie o primeiro treino para começar.
@@ -983,23 +1145,56 @@ function ModuloTreino({ protocoloId }) {
         onClose={() => setOpenNovo(false)}
         protocoloId={protocoloId}
         proximoOrdem={treinos.length}
-        onCreated={() => { setOpenNovo(false); load(); }}
+        onCreated={load}
+      />
+
+      <DuplicarTreinoModal
+        open={!!openDuplicar}
+        onClose={() => setOpenDuplicar(null)}
+        treino={openDuplicar}
+        onDuplicated={(novo) => {
+          setOpenDuplicar(null);
+          load();
+          if (novo?.id) setTreinoAtivoId(novo.id);
+        }}
       />
     </div>
   );
 }
 
-function TreinoEditor({ treino, onChange, onDelete }) {
+function TreinoEditor({ treino, onChange, onDuplicate, onDelete }) {
   const toast = useToast();
   const [openAdd, setOpenAdd] = useState(false);
   const [ordered, setOrdered] = useState(treino.exercicios || []);
+  const [editing, setEditing] = useState(false);
+  const [nomeEdit, setNomeEdit] = useState(treino.nome || '');
+  const [savingNome, setSavingNome] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  useEffect(() => setOrdered(treino.exercicios || []), [treino]);
+  useEffect(() => {
+    setOrdered(treino.exercicios || []);
+    setNomeEdit(treino.nome || '');
+    setEditing(false);
+  }, [treino]);
+
+  async function salvarNome() {
+    if (!nomeEdit.trim()) {
+      toast.error('Nome é obrigatório.');
+      return;
+    }
+    setSavingNome(true);
+    try {
+      await api.put(`/admin/treinos/${treino.id}`, { nome: nomeEdit.trim() });
+      toast.success('Treino atualizado.');
+      setEditing(false);
+      onChange();
+    } catch (err) { toast.error(errorMessage(err)); }
+    finally { setSavingNome(false); }
+  }
 
   // Agrupa exercícios por grupo_superset para visualização
   const grouped = useMemo(() => {
@@ -1075,42 +1270,91 @@ function TreinoEditor({ treino, onChange, onDelete }) {
 
   return (
     <Card className="p-5">
-      <header className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-black text-white">{treino.nome}</h3>
-        <Button variant="danger" size="sm" onClick={onDelete}>Remover treino</Button>
+      <header className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <Input
+              value={nomeEdit}
+              onChange={(e) => setNomeEdit(e.target.value)}
+              placeholder="Nome do treino"
+            />
+          ) : (
+            <h3 className="text-xl font-black text-white truncate">{treino.nome}</h3>
+          )}
+        </div>
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          {editing ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => { setEditing(false); setNomeEdit(treino.nome || ''); }}>Cancelar</Button>
+              <Button size="sm" onClick={salvarNome} disabled={savingNome}>{savingNome ? 'Salvando…' : 'Salvar'}</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>Editar</Button>
+              <Button variant="secondary" size="sm" onClick={onDuplicate}>Duplicar</Button>
+              <Button variant="danger" size="sm" onClick={onDelete}>Remover treino</Button>
+            </>
+          )}
+        </div>
       </header>
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-section-label border-b border-surface-border">
-              <th className="text-left px-2 py-2 font-semibold w-8"></th>
-              <th className="text-left px-3 py-2 font-semibold">Exercício</th>
-              <th className="text-center px-3 py-2 font-semibold">Séries</th>
-              <th className="text-center px-3 py-2 font-semibold">Reps.</th>
-              <th className="text-center px-3 py-2 font-semibold">Descanso</th>
-              <th className="text-center px-3 py-2 font-semibold">Grupo</th>
-              <th className="text-left px-3 py-2 font-semibold">Observação</th>
-              <th className="text-right px-3 py-2 font-semibold w-12"></th>
-            </tr>
-          </thead>
-          <SortableContext items={ordered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            <tbody>
-              {ordered.length === 0 && (
-                <tr><td colSpan={8} className="text-center text-zinc-500 py-8">Nenhum exercício adicionado.</td></tr>
-              )}
-              {grouped.map((g) => (
-                <GroupRows
-                  key={g.id}
-                  group={g}
+        <SortableContext items={ordered.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+          {/* Desktop: tabela */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-section-label border-b border-surface-border">
+                  <th className="text-left px-2 py-2 font-semibold w-8"></th>
+                  <th className="text-left px-3 py-2 font-semibold">Exercício</th>
+                  <th className="text-center px-3 py-2 font-semibold">Séries</th>
+                  <th className="text-center px-3 py-2 font-semibold">Reps.</th>
+                  <th className="text-center px-3 py-2 font-semibold">Descanso</th>
+                  <th className="text-center px-3 py-2 font-semibold">Grupo</th>
+                  <th className="text-left px-3 py-2 font-semibold">Observação</th>
+                  <th className="text-right px-3 py-2 font-semibold w-12"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordered.length === 0 && (
+                  <tr><td colSpan={8} className="text-center text-zinc-500 py-8">Nenhum exercício adicionado.</td></tr>
+                )}
+                {grouped.map((g) => (
+                  <GroupRows
+                    key={g.id}
+                    group={g}
+                    treinoId={treino.id}
+                    onChange={onChange}
+                    onRemove={remover}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile: cards */}
+          <div className="md:hidden space-y-2">
+            {ordered.length === 0 && (
+              <div className="text-center text-zinc-500 py-8 text-sm border border-surface-border rounded-md">
+                Nenhum exercício adicionado.
+              </div>
+            )}
+            {grouped.map((g) => {
+              const isSuper = g.group && g.items.length > 1;
+              return g.items.map((ex, idx) => (
+                <TreinoItemCard
+                  key={ex.id}
+                  item={ex}
                   treinoId={treino.id}
                   onChange={onChange}
-                  onRemove={remover}
+                  onRemove={() => remover(ex.id)}
+                  superLabel={isSuper && idx === 0 ? g.group : null}
+                  inSuper={isSuper}
                 />
-              ))}
-            </tbody>
-          </SortableContext>
-        </table>
+              ));
+            })}
+          </div>
+        </SortableContext>
       </DndContext>
 
       <div className="mt-4">
@@ -1122,7 +1366,7 @@ function TreinoEditor({ treino, onChange, onDelete }) {
         onClose={() => setOpenAdd(false)}
         treinoId={treino.id}
         proximoOrdem={ordered.length}
-        onAdded={() => { setOpenAdd(false); onChange(); }}
+        onAdded={onChange}
       />
     </Card>
   );
@@ -1217,39 +1461,151 @@ function TreinoItemRow({ item, treinoId, onChange, onRemove, superLabel, inSuper
       <td className="px-1 py-2 text-center">
         {item.tipo === 'exercicio' ? (
           <Input type="number" className="w-14 text-center text-xs py-1" value={form.series}
-            onChange={(e) => setForm({ ...form, series: e.target.value })}
+            onChange={(e) => setForm((f) => ({ ...f, series: e.target.value }))}
             onBlur={(e) => salvarCampo('series', e.target.value)} />
         ) : <span className="text-zinc-600">—</span>}
       </td>
       <td className="px-1 py-2 text-center">
         {item.tipo === 'exercicio' ? (
           <Input className="w-16 text-center text-xs py-1" value={form.repeticoes}
-            onChange={(e) => setForm({ ...form, repeticoes: e.target.value })}
+            onChange={(e) => setForm((f) => ({ ...f, repeticoes: e.target.value }))}
             onBlur={(e) => salvarCampo('repeticoes', e.target.value)} />
         ) : <span className="text-zinc-600">—</span>}
       </td>
       <td className="px-1 py-2 text-center">
         {item.tipo === 'exercicio' ? (
           <Input type="number" className="w-16 text-center text-xs py-1" value={form.descanso_seg}
-            onChange={(e) => setForm({ ...form, descanso_seg: e.target.value })}
+            onChange={(e) => setForm((f) => ({ ...f, descanso_seg: e.target.value }))}
             onBlur={(e) => salvarCampo('descanso_seg', e.target.value)} />
         ) : <span className="text-zinc-600">—</span>}
       </td>
       <td className="px-1 py-2 text-center">
         <Input className="w-12 text-center text-xs py-1 uppercase" value={form.grupo_superset}
-          onChange={(e) => setForm({ ...form, grupo_superset: e.target.value })}
+          onChange={(e) => setForm((f) => ({ ...f, grupo_superset: e.target.value }))}
           onBlur={(e) => salvarCampo('grupo_superset', e.target.value)}
           placeholder="—" />
       </td>
       <td className="px-3 py-2">
         <Input className="w-full text-xs py-1" value={form.observacao}
-          onChange={(e) => setForm({ ...form, observacao: e.target.value })}
+          onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
           onBlur={(e) => salvarCampo('observacao', e.target.value)} />
       </td>
       <td className="px-3 py-2 text-right">
         <button onClick={onRemove} className="text-zinc-500 hover:text-red-400 text-xs px-1.5 py-0.5 border border-surface-border rounded">×</button>
       </td>
     </tr>
+  );
+}
+
+function TreinoItemCard({ item, treinoId, onChange, onRemove, superLabel, inSuper }) {
+  const toast = useToast();
+  const [form, setForm] = useState({
+    series: item.series ?? '',
+    repeticoes: item.repeticoes ?? '',
+    descanso_seg: item.descanso_seg ?? '',
+    grupo_superset: item.grupo_superset ?? '',
+    observacao: item.observacao ?? '',
+  });
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  useEffect(() => {
+    setForm({
+      series: item.series ?? '',
+      repeticoes: item.repeticoes ?? '',
+      descanso_seg: item.descanso_seg ?? '',
+      grupo_superset: item.grupo_superset ?? '',
+      observacao: item.observacao ?? '',
+    });
+  }, [item]);
+
+  async function salvarCampo(campo, valor) {
+    if (String(valor) === String(item[campo] ?? '')) return;
+    try {
+      const payload = { [campo]: valor === '' ? null : isNaN(Number(valor)) || campo === 'repeticoes' || campo === 'grupo_superset' || campo === 'observacao' ? valor : Number(valor) };
+      await api.put(`/admin/treinos/${treinoId}/exercicios/${item.id}`, payload);
+      onChange();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={clsx(
+        'border border-surface-border rounded-md p-3',
+        inSuper ? 'bg-surface-elevated' : 'bg-surface-card'
+      )}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 select-none text-lg leading-none shrink-0"
+          title={inSuper ? 'Arrastar superset' : 'Arrastar para reordenar'}
+        >
+          ⠿
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {superLabel && (
+              <span className="text-[9px] uppercase tracking-widest font-black text-brand bg-brand/20 px-1.5 py-0.5 rounded border border-brand/40">
+                SUPER {superLabel}
+              </span>
+            )}
+            <span className="text-[10px] uppercase tracking-widest text-zinc-600">{item.tipo}</span>
+          </div>
+          <div className="font-semibold text-white mt-0.5 truncate">{item.nome_exercicio}</div>
+        </div>
+        <button
+          onClick={onRemove}
+          title="Remover"
+          className="text-zinc-500 hover:text-red-400 text-sm px-2 py-0.5 border border-surface-border rounded shrink-0"
+        >
+          ×
+        </button>
+      </div>
+      {item.tipo === 'exercicio' && (
+        <div className="grid grid-cols-3 gap-2">
+          <Field label="Séries">
+            <Input type="number" className="text-center text-xs py-1" value={form.series}
+              onChange={(e) => setForm((f) => ({ ...f, series: e.target.value }))}
+              onBlur={(e) => salvarCampo('series', e.target.value)} />
+          </Field>
+          <Field label="Reps">
+            <Input className="text-center text-xs py-1" value={form.repeticoes}
+              onChange={(e) => setForm((f) => ({ ...f, repeticoes: e.target.value }))}
+              onBlur={(e) => salvarCampo('repeticoes', e.target.value)} />
+          </Field>
+          <Field label="Descanso (s)">
+            <Input type="number" className="text-center text-xs py-1" value={form.descanso_seg}
+              onChange={(e) => setForm((f) => ({ ...f, descanso_seg: e.target.value }))}
+              onBlur={(e) => salvarCampo('descanso_seg', e.target.value)} />
+          </Field>
+        </div>
+      )}
+      <div className="grid grid-cols-[5rem_1fr] gap-2 mt-2">
+        <Field label="Grupo">
+          <Input className="text-center text-xs py-1 uppercase" value={form.grupo_superset}
+            onChange={(e) => setForm((f) => ({ ...f, grupo_superset: e.target.value }))}
+            onBlur={(e) => salvarCampo('grupo_superset', e.target.value)}
+            placeholder="—" />
+        </Field>
+        <Field label="Observação">
+          <Input className="text-xs py-1" value={form.observacao}
+            onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
+            onBlur={(e) => salvarCampo('observacao', e.target.value)} />
+        </Field>
+      </div>
+    </div>
   );
 }
 
@@ -1260,11 +1616,15 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
   const [params, setParams] = useState({ series: 4, repeticoes: '8-12', descanso_seg: 60, grupo_superset: '', observacao: '' });
+  const ordemRef = useRef(proximoOrdem);
+  useEffect(() => { ordemRef.current = proximoOrdem; }, [proximoOrdem]);
 
   useEffect(() => {
     if (!open) return;
+    ordemRef.current = proximoOrdem;
     setBusca(''); setResults([]); setSelected(null); setTipo('exercicio');
     setParams({ series: 4, repeticoes: '8-12', descanso_seg: 60, grupo_superset: '', observacao: '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -1297,7 +1657,7 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
     try {
       const payload = {
         tipo,
-        ordem: proximoOrdem,
+        ordem: ordemRef.current,
         grupo_superset: params.grupo_superset || undefined,
         observacao: params.observacao || undefined,
       };
@@ -1312,7 +1672,10 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
         payload.cardio_id = selected.id;
       }
       await api.post(`/admin/treinos/${treinoId}/exercicios`, payload);
+      ordemRef.current += 1;
       toast.success('Item adicionado.');
+      setBusca(''); setResults([]); setSelected(null);
+      setParams({ series: 4, repeticoes: '8-12', descanso_seg: 60, grupo_superset: '', observacao: '' });
       onAdded();
     } catch (err) { toast.error(errorMessage(err)); }
   }
@@ -1321,8 +1684,8 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
     <Modal
       open={open} onClose={onClose} title="Adicionar ao treino" size="lg"
       footer={<>
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button onClick={confirmar} disabled={!selected}>Adicionar</Button>
+        <Button variant="ghost" onClick={onClose}>Fechar</Button>
+        <Button onClick={confirmar} disabled={!selected}>Adicionar e continuar</Button>
       </>}
     >
       <div className="space-y-3">
@@ -1390,15 +1753,20 @@ function NovoTreinoModal({ open, onClose, protocoloId, proximoOrdem, onCreated }
   const toast = useToast();
   const [nome, setNome] = useState('');
   const [saving, setSaving] = useState(false);
+  const ordemRef = useRef(proximoOrdem);
+  useEffect(() => { ordemRef.current = proximoOrdem; }, [proximoOrdem]);
 
-  useEffect(() => { if (open) setNome(''); }, [open]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setNome(''); ordemRef.current = proximoOrdem; } }, [open]);
 
   async function salvar() {
     if (!nome) { toast.error('Nome é obrigatório.'); return; }
     setSaving(true);
     try {
-      await api.post(`/admin/protocolos/${protocoloId}/treinos`, { nome, ordem: proximoOrdem });
+      await api.post(`/admin/protocolos/${protocoloId}/treinos`, { nome, ordem: ordemRef.current });
       toast.success('Treino criado.');
+      ordemRef.current += 1;
+      setNome('');
       onCreated();
     } catch (err) { toast.error(errorMessage(err)); }
     finally { setSaving(false); }
@@ -1408,13 +1776,53 @@ function NovoTreinoModal({ open, onClose, protocoloId, proximoOrdem, onCreated }
     <Modal
       open={open} onClose={onClose} title="Novo treino"
       footer={<>
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Criar'}</Button>
+        <Button variant="ghost" onClick={onClose}>Fechar</Button>
+        <Button onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Criar e continuar'}</Button>
       </>}
     >
       <Field label="Nome do treino *">
         <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Treino A, B, …" autoFocus />
       </Field>
+    </Modal>
+  );
+}
+
+function DuplicarTreinoModal({ open, onClose, treino, onDuplicated }) {
+  const toast = useToast();
+  const [nome, setNome] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open && treino) setNome(`${treino.nome} (cópia)`);
+  }, [open, treino]);
+
+  async function duplicar() {
+    if (!nome.trim()) { toast.error('Nome é obrigatório.'); return; }
+    setSaving(true);
+    try {
+      const res = await api.post(`/admin/treinos/${treino.id}/duplicar`, { nome: nome.trim() });
+      toast.success('Treino duplicado.');
+      onDuplicated(res.data);
+    } catch (err) { toast.error(errorMessage(err)); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal
+      open={open} onClose={onClose} title="Duplicar treino"
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+        <Button onClick={duplicar} disabled={saving}>{saving ? 'Duplicando…' : 'Duplicar'}</Button>
+      </>}
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-zinc-400">
+          Duplicar <span className="text-white font-semibold">{treino?.nome}</span> com todos os seus exercícios.
+        </p>
+        <Field label="Nome do novo treino *">
+          <Input value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+        </Field>
+      </div>
     </Modal>
   );
 }
@@ -1523,14 +1931,14 @@ function SuplementoModal({ open, onClose, protocoloId, proximoOrdem, onCreated }
       </>}
     >
       <div className="space-y-3">
-        <Field label="Suplemento *"><Input autoFocus value={form.nome_suplemento} onChange={(e) => setForm({ ...form, nome_suplemento: e.target.value })} placeholder="Whey Protein, Creatina…" /></Field>
+        <Field label="Suplemento *"><Input autoFocus value={form.nome_suplemento} onChange={(e) => setForm((f) => ({ ...f, nome_suplemento: e.target.value }))} placeholder="Whey Protein, Creatina…" /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Dose *"><Input value={form.dose} onChange={(e) => setForm({ ...form, dose: e.target.value })} placeholder="30g, 5g, 2 cápsulas…" /></Field>
-          <Field label="Horário"><Input value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} placeholder="Pós-treino, 07:00…" /></Field>
+          <Field label="Dose *"><Input value={form.dose} onChange={(e) => setForm((f) => ({ ...f, dose: e.target.value }))} placeholder="30g, 5g, 2 cápsulas…" /></Field>
+          <Field label="Horário"><Input value={form.horario} onChange={(e) => setForm((f) => ({ ...f, horario: e.target.value }))} placeholder="Pós-treino, 07:00…" /></Field>
         </div>
         <Field label="Observação">
           <textarea rows={2} className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-sm resize-none"
-            value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} />
+            value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))} />
         </Field>
       </div>
     </Modal>
@@ -1538,6 +1946,51 @@ function SuplementoModal({ open, onClose, protocoloId, proximoOrdem, onCreated }
 }
 
 // ─── Módulo Observações ──────────────────────────────────────────────────────
+
+function HidratacaoCard({ protocolo, onSaved }) {
+  const toast = useToast();
+  const [metaAgua, setMetaAgua] = useState(
+    protocolo.meta_agua_litros != null ? Number(protocolo.meta_agua_litros) : 2.5
+  );
+  const [saving, setSaving] = useState(false);
+
+  async function salvarMetaAgua() {
+    setSaving(true);
+    try {
+      await api.put(`/admin/protocolos/${protocolo.id}`, { meta_agua_litros: metaAgua });
+      toast.success('Meta de água atualizada.');
+      onSaved();
+    } catch (err) { toast.error(errorMessage(err)); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="mt-4 border-t border-surface-border pt-4 px-5 pb-5">
+      <p className="text-xs uppercase tracking-widest text-zinc-500 mb-2">Hidratação</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min="0.5"
+          max="10"
+          step="0.5"
+          value={metaAgua}
+          onChange={(e) => setMetaAgua(Number(e.target.value))}
+          className="w-20 bg-surface-input border border-surface-border text-white
+            rounded px-2 py-1.5 text-sm text-center focus:border-brand focus:outline-none"
+        />
+        <span className="text-zinc-400 text-sm">litros / dia</span>
+      </div>
+      <button
+        onClick={salvarMetaAgua}
+        disabled={saving}
+        className="mt-2 text-xs text-brand border border-brand/40 px-3 py-1 rounded
+          hover:bg-brand/10 font-bold disabled:opacity-50"
+      >
+        {saving ? 'Salvando…' : 'Salvar meta'}
+      </button>
+    </div>
+  );
+}
 
 function ModuloObservacoes({ protocolo, onSaved }) {
   const toast = useToast();
