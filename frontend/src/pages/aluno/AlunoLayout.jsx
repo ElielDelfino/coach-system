@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 const ITENS = [
   { id: 'home',   label: 'Home',   icone: '🏠', rota: '/aluno/home' },
@@ -7,13 +7,22 @@ const ITENS = [
   { id: 'perfil', label: 'Perfil', icone: '👤', rota: '/aluno/perfil' },
 ];
 
-export default function AlunoLayout({ children, paginaAtiva }) {
+function derivarPaginaAtiva(pathname) {
+  if (pathname.startsWith('/aluno/treino')) return 'treino';
+  if (pathname.startsWith('/aluno/dieta'))  return 'dieta';
+  if (pathname.startsWith('/aluno/perfil')) return 'perfil';
+  return 'home';
+}
+
+export default function AlunoLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const paginaAtiva = derivarPaginaAtiva(location.pathname);
 
   return (
     <div className="min-h-screen bg-surface flex flex-col max-w-md mx-auto relative">
       <div className="flex-1 pb-24">
-        {children}
+        <Outlet />
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto

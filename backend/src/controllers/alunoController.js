@@ -1,4 +1,4 @@
-const alunoModel = require('../models/aluno');
+const alunoModel = require('../models');
 const pool = require('../config/db');
 const { gerarPDFProtocolo } = require('../services/pdf');
 

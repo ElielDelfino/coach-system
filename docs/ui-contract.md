@@ -1,7 +1,14 @@
 # Coach System — Contrato UI
 
-> Documento para o agente-ui (Fase 3). Descreve o que o front-end recebe de cada rota implementada no back-end.
+> Documento para o agente-ui. Descreve o que o front-end recebe (e envia) em cada rota implementada no back-end.
 > Base URL: `/api` | Auth: `Authorization: Bearer <accessToken>` | Cookie: `refreshToken` httpOnly
+>
+> **Hardening de produção em vigor (não muda o shape, mas afeta UX):**
+> - `helmet` em todas as respostas.
+> - `POST /api/auth/login` limitado a 10 tentativas / 15 min por IP.
+> - `/api` em geral limitado a 120 requisições / minuto por IP.
+> - Quando o limite é atingido: HTTP `429` com `{ "message": "Muitas requisições..." }` — trate como qualquer outro erro de toast.
+> - `GET /health` disponível para infra (não usado pelo front).
 
 ---
 
@@ -24,7 +31,7 @@ Chame quando o `accessToken` expirar (interceptor Axios 401).
 ```
 
 ### POST /api/auth/logout
-Limpa cookie do servidor. Front-end deve descartar o `accessToken` da memória.
+Limpa cookie do servidor e adiciona o access token corrente à blacklist. Front-end deve descartar o `accessToken` da memória.
 ```json
 { "message": "Sessão encerrada com sucesso." }
 ```
@@ -42,8 +49,8 @@ Evolução agregada da base nos últimos 90 dias (médias por dia).
   ]
 }
 ```
-- `data` formato `YYYY-MM-DD`, ordem cronológica ascendente.
-- Valores numéricos com 1 casa decimal; podem vir `null`.
+- `data` no formato `YYYY-MM-DD`, ordem cronológica ascendente.
+- Valores numéricos com 1 casa decimal; podem vir `null` quando o campo não foi preenchido em nenhuma medição do dia.
 - Front exibe um `LineChart` (peso médio) e um `AreaChart` (%BF médio) — eixo X formatado como `DD/MM`.
 
 ### GET /api/admin/dashboard/resumo
@@ -73,8 +80,9 @@ Evolução agregada da base nos últimos 90 dias (médias por dia).
   "data": [{
     "id": "uuid", "user_id": "uuid", "nome": "string", "email": "string",
     "telefone": "string", "ativo": true,
-    "vencimento_plano": "date | null",
-    "status": "ativo | inadimplente | inativo",
+    "status": "neutro | em_dia | inadimplente | inativo",
+    "dias_tolerancia": 7,
+    "periodicidade_dias": 30,
     "created_at": "timestamp"
   }],
   "total": 42, "page": 1, "limit": 20
@@ -82,25 +90,41 @@ Evolução agregada da base nos últimos 90 dias (médias por dia).
 ```
 **Query params:** `ativo` (bool, default `true`), `busca` (string), `page`, `limit`
 
-**`status` calculado dinamicamente — use para colorir badges:**
-- `ativo` → verde
+**`status` calculado dinamicamente no SQL — use para colorir badges:**
+- `em_dia` → verde
 - `inadimplente` → vermelho
-- `inativo` → cinza
+- `neutro` (sem fatura ainda) → cinza neutro
+- `inativo` → cinza apagado
+
+> Importante: o front nunca deve recalcular esse status — sempre confie no campo.
 
 ### POST /api/admin/alunos → 201
+**Body:**
 ```json
-{ "id": "uuid", "user_id": "uuid", "nome": "string", "email": "string", "created_at": "timestamp" }
+{
+  "nome": "string", "email": "string", "senha": "string (>=8)",
+  "telefone": "string?", "data_nascimento": "date?", "sexo": "M|F|outro|null",
+  "objetivo": "string?", "restricoes": "string?", "lesoes": "string?",
+  "dias_tolerancia": 7, "periodicidade_dias": 30
+}
+```
+**Response:**
+```json
+{
+  "id": "uuid", "user_id": "uuid", "nome": "string", "email": "string",
+  "dias_tolerancia": 7, "periodicidade_dias": 30, "created_at": "timestamp"
+}
 ```
 
 ### GET /api/admin/alunos/:id
 ```json
 {
   "id": "uuid", "user_id": "uuid", "nome": "string", "email": "string",
-  "telefone": "string", "data_nascimento": "date", "sexo": "M | F | outro",
+  "telefone": "string", "data_nascimento": "date", "sexo": "M|F|outro",
   "objetivo": "string", "restricoes": "string", "lesoes": "string",
   "observacoes": "string", "ativo": true,
-  "status": "ativo | inadimplente | inativo",
-  "vencimento_plano": "date | null",
+  "status": "neutro | em_dia | inadimplente | inativo",
+  "dias_tolerancia": 7, "periodicidade_dias": 30,
   "ultima_medicao": {
     "data_medicao": "date", "peso_kg": 80.5, "percentual_gordura": 18.2,
     "peso_magro_kg": 65.9, "peso_gordo_kg": 14.6
@@ -108,6 +132,15 @@ Evolução agregada da base nos últimos 90 dias (médias por dia).
   "created_at": "timestamp", "updated_at": "timestamp"
 }
 ```
+
+### PUT /api/admin/alunos/:id
+Todos os campos do POST opcionais (sem `email` e `senha`). Retorna `{ "message": "Aluno atualizado com sucesso." }`.
+
+### PATCH /api/admin/alunos/:id/ativar | /desativar
+Body vazio. Retorna `{ "message": "..." }`. Em desativar, o servidor adiciona o `user_id` à blacklist do Redis por 7 dias — sessões ativas do aluno são derrubadas no próximo request.
+
+### PATCH /api/admin/alunos/:id/senha
+**Body:** `{ "senha": "string (>=8)" }`. Re-hash com bcrypt cost 12. Sessões já ativas continuam até o access token expirar.
 
 ### GET /api/admin/alunos/:id/medidas
 Array ordenado por `data_medicao DESC`. Campos: todos de `aluno_medidas` + `created_at`.
@@ -117,15 +150,33 @@ Array ordenado por `data_medicao DESC`. Campos: todos de `aluno_medidas` + `crea
 { "id": "uuid", "data_medicao": "date", "created_at": "timestamp" }
 ```
 
+### GET /api/admin/alunos/:id/medidas/:medidaId
+Objeto completo da medição. `404` se `medidaId` não pertencer ao `:id` informado.
+
+### PUT /api/admin/alunos/:id/medidas/:medidaId
+Mesmo schema do POST (todos os campos opcionais). Retorna `{ "message": "Medição atualizada." }`.
+
+### DELETE /api/admin/alunos/:id/medidas/:medidaId
+Retorna `{ "message": "Medição removida." }`.
+
 ### GET /api/admin/alunos/:id/fotos
 ```json
-[{ "id": "uuid", "url": "string", "posicao": "frente|costas|lado_dir|lado_esq", "data_foto": "date", "created_at": "timestamp" }]
+[{
+  "id": "uuid", "url": "string", "s3_key": "string",
+  "posicao": "frente|costas|lado_dir|lado_esq",
+  "data_foto": "date", "created_at": "timestamp"
+}]
 ```
 
-### POST /api/admin/alunos/:id/fotos → 201
-```json
-{ "id": "uuid", "url": "string", "posicao": "string", "data_foto": "date" }
-```
+### PATCH /api/admin/alunos/:id/liberar-fotos
+Libera/bloqueia o upload de fotos pelo aluno.
+**Body:** `{ "liberado": true }`
+**Response:** `{ "message": "...", "envio_fotos_liberado": true }`
+
+> Não existe endpoint admin para fazer upload de foto do aluno — o upload é feito apenas pelo próprio aluno em `POST /api/aluno/fotos` quando liberado.
+
+### DELETE /api/admin/alunos/:alunoId/fotos/:fotoId
+Remove a foto no banco e o arquivo correspondente no S3. Retorna `{ "message": "Foto removida com sucesso." }`.
 
 ---
 
@@ -149,9 +200,59 @@ Array ordenado por `data_medicao DESC`. Campos: todos de `aluno_medidas` + `crea
 Array de pagamentos do aluno (sem `nome_aluno`).
 
 ### POST /api/admin/alunos/:id/pagamentos → 201
+**Body:**
 ```json
-{ "id": "uuid", "valor": 150.00, "data_pagamento": "date", "vencimento": "date", "created_at": "timestamp" }
+{
+  "valor": 150.00, "data_pagamento": "date",
+  "metodo": "dinheiro|pix|cartao_credito|cartao_debito|transferencia",
+  "vencimento": "date", "observacoes": "string?"
+}
 ```
+**Response:** `{ "id": "uuid", "valor": 150.00, "data_pagamento": "date", "vencimento": "date", "created_at": "timestamp" }`
+
+---
+
+## ADMIN — FATURAS
+
+> Modelo financeiro do sistema é por **faturas** — pagamentos são apenas o registro de baixa. Status do aluno (`em_dia | inadimplente | neutro`) deriva da existência e do vencimento das faturas.
+
+### GET /api/admin/alunos/:id/faturas
+```json
+[{
+  "id": "uuid", "valor": 200.00, "data_vencimento": "date",
+  "status": "pendente | pago | vencido",
+  "data_baixa": "date | null",
+  "metodo_baixa": "string | null",
+  "desconto_tipo": "valor | percentual | null",
+  "desconto_valor": "number | null",
+  "valor_final": "number",
+  "observacoes": "string | null"
+}]
+```
+
+### POST /api/admin/alunos/:id/faturas → 201
+**Body:**
+```json
+{
+  "valor": 200.00,
+  "data_vencimento": "date",
+  "observacoes": "string?",
+  "desconto_tipo": "valor | percentual | null",
+  "desconto_valor": "number?"
+}
+```
+`valor_final` é calculado no servidor; o front nunca envia.
+
+### PUT /api/admin/faturas/:id
+Edita campos da fatura ainda em aberto (`valor`, `data_vencimento`, descontos, observações). Retorna `{ "message": "Fatura atualizada.", "fatura": { ... } }`.
+
+### PATCH /api/admin/faturas/:id/baixa
+Marca como paga.
+**Body:** `{ "data_baixa": "date", "metodo_baixa": "dinheiro|pix|cartao_credito|cartao_debito|transferencia", "observacoes": "string?" }`
+**Response:** objeto da fatura atualizada. Retorna `400` se já estiver paga.
+
+### DELETE /api/admin/faturas/:id
+Retorna `{ "message": "Fatura removida." }`.
 
 ---
 
@@ -159,12 +260,27 @@ Array de pagamentos do aluno (sem `nome_aluno`).
 
 ### GET /api/admin/exercicios
 ```json
-{ "data": [{ "id":"uuid","nome":"string","grupo_muscular":"string","equipamento":"string","nivel":"string","thumbnail_url":"string","ativo":true }], "total": 50 }
+{ "data": [{
+  "id":"uuid","nome":"string","grupo_muscular":"string","equipamento":"string",
+  "nivel":"string","thumbnail_url":"string","ativo":true
+}], "total": 50 }
 ```
 **Query params:** `grupo_muscular`, `nivel`, `ativo`, `busca`
 
 ### GET /api/admin/exercicios/:id
-Objeto completo com: `video_url`, `observacoes_tecnicas`, `execucao_correta`, `execucao_errada`, `descanso_padrao_seg`, `series_recomendadas`, `repeticoes_recomendadas`, `cadencia`, `exercicio_substituto_id`.
+Objeto completo com: `video_url`, `video_youtube_url`, `video_embed_url` (derivado), `observacoes_tecnicas`, `execucao_correta`, `execucao_errada`, `descanso_padrao_seg`, `series_recomendadas`, `repeticoes_recomendadas`, `cadencia`, `exercicio_substituto_id`.
+
+> `video_embed_url` vem montado pelo backend a partir de `video_youtube_url` — front só precisa renderizar no `<iframe>`.
+
+### PUT /api/admin/exercicios/:id/thumbnail (multipart)
+- Field: `thumbnail` (file) — JPG/PNG/WebP, máx. 15MB
+- Retorna `{ "thumbnail_url": "https://..." }` (URL pública do S3).
+
+### PUT /api/admin/exercicios/:id/video (multipart)
+- Field: `video` (file) — MP4/WebM/MOV/AVI, máx. 500MB
+- Retorna `{ "video_url": "https://...", "s3_key": "exercicios/videos/..." }`.
+
+> Modos suportados em exercícios: arquivo S3 (`video_url`) **ou** YouTube (`video_youtube_url`). Front escolhe um deles na UI de criação/edição.
 
 ---
 
@@ -172,11 +288,20 @@ Objeto completo com: `video_url`, `observacoes_tecnicas`, `execucao_correta`, `e
 
 ### GET /api/admin/alimentos
 ```json
-{ "data": [{ "id":"uuid","nome":"string","categoria":"string","quantidade_base":100,"unidade":"gramas","calorias":89.0,"proteinas":1.1,"carboidratos":22.8,"gorduras":0.3,"ativo":true }], "total": 200 }
+{ "data": [{
+  "id":"uuid","nome":"string","categoria":"string",
+  "quantidade_base":100,"unidade":"gramas",
+  "calorias":89.0,"proteinas":1.1,"carboidratos":22.8,"gorduras":0.3,
+  "ativo":true
+}], "total": 200 }
 ```
 
 ### GET /api/admin/alimentos/:id
 Objeto completo com: `fibra`, `sodio`, `foto_url`.
+
+### PUT /api/admin/alimentos/:id/foto (multipart)
+- Field: `foto` (file) — JPG/PNG/WebP, máx. 15MB
+- Retorna `{ "foto_url": "https://..." }`.
 
 ---
 
@@ -184,7 +309,11 @@ Objeto completo com: `fibra`, `sodio`, `foto_url`.
 
 ### GET /api/admin/cardio
 ```json
-{ "data": [{ "id":"uuid","tipo":"corrida","intensidade":"moderada","duracao_min":30,"gasto_calorico_estimado":300.0,"inclinacao":1.0,"velocidade":10.0,"ativo":true }], "total": 15 }
+{ "data": [{
+  "id":"uuid","tipo":"corrida","intensidade":"moderada",
+  "duracao_min":30,"gasto_calorico_estimado":300.0,
+  "inclinacao":1.0,"velocidade":10.0,"ativo":true
+}], "total": 15 }
 ```
 
 ---
@@ -193,11 +322,35 @@ Objeto completo com: `fibra`, `sodio`, `foto_url`.
 
 ### GET /api/admin/alunos/:id/protocolos
 ```json
-[{ "id":"uuid","nome":"string","objetivo":"string","fase":"cutting|bulking|manutencao|recomposicao","data_inicio":"date","data_fim":"date","ativo":true,"modulo_alimentar":true,"modulo_treino":true,"modulo_cardio":false,"modulo_suplementacao":true }]
+[{
+  "id":"uuid","nome":"string","objetivo":"string",
+  "fase":"cutting|bulking|manutencao|recomposicao",
+  "data_inicio":"date","data_fim":"date","ativo":true,
+  "modulo_alimentar":true,"modulo_treino":true,
+  "modulo_cardio":false,"modulo_suplementacao":true
+}]
 ```
 
 ### GET /api/admin/protocolos/:id
 Objeto completo do protocolo com todos os campos.
+
+### PUT /api/admin/protocolos/:id
+Body com schema do POST (todos opcionais). Retorna `{ "message": "Protocolo atualizado com sucesso." }`.
+
+### PATCH /api/admin/protocolos/:id/ativar | /desativar
+Body vazio. Retorna `{ "message": "Protocolo ativado." | "Protocolo desativado." }`.
+
+### DELETE /api/admin/protocolos/:id
+Cascata: refeições, itens, substitutos, treinos, exercícios do treino, suplementação. Retorna `{ "message": "Protocolo removido." }`.
+
+### GET /api/admin/protocolos/:id/pdf
+Download direto do PDF do protocolo. `Content-Type: application/pdf`, `Content-Disposition: attachment; filename="protocolo-<slug>.pdf"`.
+
+> Front deve disparar o download com `axios({ responseType: 'blob' })` ou abrir em nova aba.
+
+### POST /api/admin/protocolos/:id/enviar-pdf
+Body vazio. Gera o PDF e envia para o email cadastrado do aluno via Resend.
+Retorna `{ "message": "Protocolo enviado para email@aluno.com" }`. Erros típicos: `400` (aluno sem email), `500` (falha Puppeteer/Resend — mensagem indica a origem).
 
 ---
 
@@ -241,12 +394,17 @@ Macros já calculados e retornados:
 ```
 
 ### POST /api/admin/refeicoes/:id/duplicar → 201
-```json
-{ "id":"uuid","numero_refeicao":5,"nome":"string","created_at":"timestamp" }
-```
+**Body:** `{ "numero_refeicao_destino": 5 }` (obrigatório).
+**Response:** `{ "id":"uuid","numero_refeicao":5,"nome":"string","created_at":"timestamp" }`. `400` se já existir refeição com o mesmo `numero_refeicao` no protocolo.
 
 ### PATCH /api/admin/refeicoes/:refeicaoId/itens/reordenar
-Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`
+Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`. Resposta: `{ "message": "..." }`.
+
+### POST /api/admin/refeicoes/:refeicaoId/itens/:itemId/substitutos
+**Body:** `{ "alimento_id": "uuid", "quantidade_g": 120.0 }`.
+
+### DELETE /api/admin/refeicoes/:refeicaoId/itens/:itemId/substitutos/:substitutoId
+Resposta: `{ "message": "..." }`.
 
 ---
 
@@ -275,8 +433,12 @@ Estrutura aninhada com exercícios:
 }]
 ```
 
+### POST /api/admin/treinos/:id/duplicar → 201
+Cria um novo treino no mesmo protocolo, copiando todos os itens.
+**Body (opcional):** `{ "nome": "string?", "ordem": 0 }`. Sem `nome` → `"<original> (cópia)"`. Sem `ordem` → fica após o último treino.
+
 ### PATCH /api/admin/treinos/:treinoId/exercicios/reordenar
-Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`
+Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`.
 
 ---
 
@@ -292,6 +454,7 @@ Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`
 ## ALUNO — SELF-SERVICE
 
 > Todas as rotas usam o `aluno_id` do JWT — nunca exposto como parâmetro.
+> O middleware bloqueia o acesso quando o aluno está inativo (`403 code: "INATIVO"`) ou inadimplente (`403 code: "INADIMPLENTE"`). O front deve tratar esses códigos para exibir tela específica de bloqueio.
 
 ### GET /api/aluno/perfil
 ```json
@@ -300,8 +463,8 @@ Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`
   "telefone": "string", "data_nascimento": "date", "sexo": "M|F|outro",
   "objetivo": "string", "restricoes": "string", "lesoes": "string",
   "ativo": true,
-  "status": "ativo | inadimplente | inativo",
-  "vencimento_plano": "date | null"
+  "status": "neutro | em_dia | inadimplente | inativo",
+  "dias_tolerancia": 7, "periodicidade_dias": 30
 }
 ```
 
@@ -309,7 +472,7 @@ Body: `{ "ordem": [{ "id": "uuid", "ordem": 0 }, ...] }`
 Mesmo formato de `GET /api/admin/alunos/:id/medidas`.
 
 ### GET /api/aluno/evolucao
-Série cronológica de medições do aluno autenticado, usada nos gráficos da aba “Minhas Medidas”.
+Série cronológica de medições do aluno autenticado, usada nos gráficos da aba "Minhas Medidas".
 ```json
 {
   "evolucao": [
@@ -336,16 +499,45 @@ Série cronológica de medições do aluno autenticado, usada nos gráficos da a
 ### GET /api/aluno/fotos
 Mesmo formato de `GET /api/admin/alunos/:id/fotos`.
 
+### POST /api/aluno/fotos (multipart) → 201
+- `Content-Type: multipart/form-data`
+- Fields: `foto` (file, JPG/PNG/WebP, máx. 15MB) e `posicao` (`frente|costas|lado_dir|lado_esq`).
+- Só funciona se o admin tiver chamado `PATCH /alunos/:id/liberar-fotos` com `liberado: true`. Caso contrário: `403 "Envio de fotos não liberado pelo professor."`.
+```json
+{
+  "id": "uuid",
+  "url": "https://coach-system-uploads.s3.us-east-1.amazonaws.com/alunos/fotos/...",
+  "s3_key": "alunos/fotos/{uuid}.jpg",
+  "posicao": "frente",
+  "data_foto": "date",
+  "created_at": "timestamp"
+}
+```
+
 ### GET /api/aluno/pagamentos
 ```json
 [{ "id":"uuid","valor":150.00,"data_pagamento":"date","metodo":"pix","vencimento":"date" }]
+```
+
+### GET /api/aluno/faturas
+```json
+[{
+  "id": "uuid",
+  "valor": 150.00,
+  "data_vencimento": "date",
+  "status": "pendente | pago | vencido",
+  "data_baixa": "date | null",
+  "desconto_tipo": "valor | percentual | null",
+  "desconto_valor": "number | null",
+  "valor_final": "number"
+}]
 ```
 
 ### GET /api/aluno/protocolos
 Mesmo formato de `GET /api/admin/alunos/:id/protocolos`.
 
 ### GET /api/aluno/protocolos/:id
-Objeto completo. Retorna 403 se o protocolo não pertencer ao aluno autenticado.
+Objeto completo. Retorna `403` se o protocolo não pertencer ao aluno autenticado.
 
 ### GET /api/aluno/protocolos/:id/refeicoes
 Mesmo formato de `GET /api/admin/protocolos/:id/refeicoes` (com totais e substitutos).
@@ -356,26 +548,37 @@ Mesmo formato de `GET /api/admin/protocolos/:id/treinos`.
 ### GET /api/aluno/protocolos/:id/suplementacao
 Mesmo formato de `GET /api/admin/protocolos/:id/suplementacao`.
 
+### GET /api/aluno/protocolos/:id/pdf
+Download direto do PDF do próprio protocolo. `Content-Type: application/pdf`, `Content-Disposition: attachment; filename="protocolo-<slug>.pdf"`. `403` se o protocolo não pertencer ao aluno.
+
 ---
 
 ## DECISÕES TÉCNICAS PARA O AGENTE-UI
 
-1. **Token storage:** `accessToken` deve ficar **em memória** (variável de estado ou Context). Nunca em `localStorage` ou `sessionStorage`.
+1. **Token storage:** `accessToken` fica **em memória** (variável de estado ou Context). Nunca em `localStorage`/`sessionStorage`. O refresh é httpOnly cookie e o servidor injeta automaticamente.
 
-2. **Interceptor Axios 401:** quando qualquer chamada retornar 401, chame `POST /api/auth/refresh` automaticamente e reenvie a requisição original. Se o refresh também falhar, redirecione para `/login`.
+2. **Interceptor Axios 401:** quando qualquer chamada (exceto `/auth/login` e `/auth/refresh`) retornar 401, chame `POST /api/auth/refresh` automaticamente e reenvie a requisição original. Se o refresh também falhar, dispare `onUnauthorized()` → redireciona para `/login`. Implementação atual em `frontend/src/services/api.js`.
 
-3. **Campo `status`:** retornado em `GET /api/admin/alunos`, `GET /api/admin/alunos/:id` e `GET /api/aluno/perfil`. Use para colorir badges sem precisar calcular no front-end.
+3. **ToastProvider estável:** a API exposta por `useToast()` (success/error/info) está memoizada com `useMemo` — pode ir nas dependências de `useEffect`/`useCallback` sem causar loops.
 
-4. **Macros calculados:** `kcal_calculado`, `prot_calculado`, `carb_calculado`, `gord_calculado` já vêm calculados do servidor. O front-end **não deve** recalcular — apenas exibir. Os totais (`total_kcal`, etc.) por refeição também são calculados no back-end.
+4. **Campo `status` do aluno:** quatro estados — `em_dia | inadimplente | neutro | inativo`. Calculado no SQL via `STATUS_SQL` no model. O front **não recalcula** — só renderiza badge.
 
-5. **Reordenação (drag-and-drop):** envie o array completo de `{ id, ordem }` para os endpoints `PATCH .../reordenar`. A operação é atômica no servidor via `unnest`.
+5. **Macros calculados:** `kcal_calculado`, `prot_calculado`, `carb_calculado`, `gord_calculado` já vêm do servidor. Os totais por refeição (`total_kcal`, etc.) também. Front apenas exibe.
 
-6. **Rotas `/api/admin/*`:** acessíveis apenas com `role = "admin"`. Se o accessToken tiver `role = "aluno"`, o servidor retornará 403.
+6. **Reordenação (drag-and-drop):** envie o array completo de `{ id, ordem }` para os endpoints `PATCH .../reordenar`. A operação é atômica no servidor via `unnest`. Importante: rotas `.../reordenar` devem vir **antes** das rotas com `:itemId` no Express — já está assim em `routes/admin.js`.
 
-7. **Rotas `/api/aluno/*`:** o `aluno_id` vem do JWT — não envie como parâmetro de URL ou body.
+7. **Rotas `/api/admin/*`:** acessíveis apenas com `role = "admin"`. Token com `role = "aluno"` recebe `403`.
 
-8. **Erros padronizados:** todo erro retorna `{ "message": "string" }`. Exiba `response.data.message` nos toasts/alerts.
+8. **Rotas `/api/aluno/*`:** o `aluno_id` vem do JWT — nunca enviado como param/body. Se o aluno estiver inativo/inadimplente, qualquer chamada retorna `403` com `code` informando o motivo.
 
-9. **Paginação:** `GET /api/admin/alunos` e `GET /api/admin/pagamentos` são paginados. Use `?page=1&limit=20`. A resposta inclui `total` para calcular número de páginas.
+9. **Erros padronizados:** todo erro retorna `{ "message": "string" }`. Utilitário `errorMessage(err)` em `frontend/src/components/ui/Toast.jsx` extrai a string. Exiba via `toast.error(errorMessage(err))`.
 
-10. **Dockerfiles trocados:** `backend.Dockerfile` é na verdade o frontend (nginx) e `frontend.Dockerfile` é o backend (Node.js). O agente-docker deve corrigir os nomes antes do deploy.
+10. **Rate limit (429):** ao receber `429`, o `errorMessage` já entrega a string vinda do servidor. Considere desabilitar botões de submit por alguns segundos para evitar repetição.
+
+11. **Paginação:** `GET /api/admin/alunos` e `GET /api/admin/pagamentos` são paginados (`page`, `limit`, `total`). Demais listas não são paginadas — front recebe tudo.
+
+12. **Uploads multipart:** thumbnails/fotos (15MB) e vídeos (500MB) vão direto para S3 via `multer-s3`. O servidor devolve a `url` pública (`S3_PUBLIC_URL/<key>`). Sempre use `FormData` no front (não JSON).
+
+13. **Vídeo de exercício — dois modos:** `video_url` (arquivo S3) ou `video_youtube_url` (link YT). O backend devolve `video_embed_url` pronto quando há YouTube — basta colocar em `<iframe src=...>`.
+
+14. **Download de PDF:** prefira `axios.get(url, { responseType: 'blob' })` + `URL.createObjectURL` para evitar dependência do refresh do cookie em popup. O `Content-Disposition` já vem preparado pelo backend.

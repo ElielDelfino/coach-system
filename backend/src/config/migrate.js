@@ -2,9 +2,17 @@ const fs = require('fs');
 const path = require('path');
 const pool = require('./db');
 
+// Lock cross-réplicas: garante que apenas uma réplica execute migrações/seed por vez.
+// Compartilhado com seed.js — ambos usam a mesma chave para serializar o boot.
+const BOOT_LOCK_KEY = 4242424242;
+
 async function migrate() {
   const client = await pool.connect();
+  let locked = false;
   try {
+    await client.query('SELECT pg_advisory_lock($1)', [BOOT_LOCK_KEY]);
+    locked = true;
+
     const { rows } = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables
@@ -145,8 +153,16 @@ async function migrate() {
       AND data_vencimento < CURRENT_DATE
     `);
   } finally {
+    if (locked) {
+      try {
+        await client.query('SELECT pg_advisory_unlock($1)', [BOOT_LOCK_KEY]);
+      } catch (err) {
+        console.error('[migrate] Falha ao liberar advisory lock:', err.message);
+      }
+    }
     client.release();
   }
 }
 
 module.exports = migrate;
+module.exports.BOOT_LOCK_KEY = BOOT_LOCK_KEY;

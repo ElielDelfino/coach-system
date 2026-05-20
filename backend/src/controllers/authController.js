@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const userModel = require('../models/user');
-const alunoModel = require('../models/aluno');
 const redis = require('../config/redis');
 const pool = require('../config/db');
 
@@ -15,9 +14,6 @@ const COOKIE_OPTS = {
 async function login(req, res) {
   try {
     const { email, senha } = req.body;
-    if (!email || !senha) {
-      return res.status(400).json({ message: 'E-mail e senha são obrigatórios.' });
-    }
 
     const user = await userModel.findByEmail(email);
     if (!user) return res.status(401).json({ message: 'Credenciais inválidas.' });

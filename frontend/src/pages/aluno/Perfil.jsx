@@ -13,7 +13,6 @@ import Modal from '../../components/ui/Modal';
 import ImageUpload from '../../components/ImageUpload';
 import PageLoader from '../../components/ui/PageLoader';
 import EmptyState from '../../components/ui/EmptyState';
-import AlunoLayout from './AlunoLayout';
 
 const TABS = [
   { id: 'perfil',   label: 'Meu Perfil' },
@@ -106,11 +105,7 @@ export default function Perfil() {
   }, [activeTab, fotos, toast]);
 
   if (loadingBase || !perfil) {
-    return (
-      <AlunoLayout paginaAtiva="perfil">
-        <PageLoader mensagem="Carregando seu perfil..." />
-      </AlunoLayout>
-    );
+    return <PageLoader mensagem="Carregando seu perfil..." />;
   }
 
   const inadimplente = perfil.status === 'inadimplente';
@@ -120,8 +115,7 @@ export default function Perfil() {
     .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))[0];
 
   return (
-    <AlunoLayout paginaAtiva="perfil">
-      <div className="px-4 pt-6 pb-4 space-y-5">
+    <div className="px-4 pt-6 pb-4 space-y-5">
         <header className="flex items-center justify-between">
           <h1 className="text-3xl font-black text-white tracking-tight">Perfil</h1>
           <button
@@ -178,8 +172,7 @@ export default function Perfil() {
         {activeTab === 'faturas' && (
           <TabFaturas faturas={faturas} />
         )}
-      </div>
-    </AlunoLayout>
+    </div>
   );
 }
 

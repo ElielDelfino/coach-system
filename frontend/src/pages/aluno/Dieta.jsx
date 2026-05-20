@@ -6,7 +6,6 @@ import { useToast, errorMessage } from '../../components/ui/Toast';
 import PageLoader from '../../components/ui/PageLoader';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
-import AlunoLayout from './AlunoLayout';
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -104,24 +103,18 @@ export default function Dieta() {
   }
 
   if (loading) {
-    return (
-      <AlunoLayout paginaAtiva="dieta">
-        <PageLoader mensagem="Carregando dieta..." />
-      </AlunoLayout>
-    );
+    return <PageLoader mensagem="Carregando dieta..." />;
   }
 
   if (!protocolo) {
     return (
-      <AlunoLayout paginaAtiva="dieta">
-        <div className="px-5 pt-12">
-          <EmptyState
-            icone="🍽️"
-            titulo="Nenhum protocolo ativo"
-            descricao="Seu professor ainda não criou um protocolo para você."
-          />
-        </div>
-      </AlunoLayout>
+      <div className="px-5 pt-12">
+        <EmptyState
+          icone="🍽️"
+          titulo="Nenhum protocolo ativo"
+          descricao="Seu professor ainda não criou um protocolo para você."
+        />
+      </div>
     );
   }
 
@@ -136,7 +129,7 @@ export default function Dieta() {
     : [];
 
   return (
-    <AlunoLayout paginaAtiva="dieta">
+    <>
       <div className="px-5 pt-6">
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
           {dias.map((dia, i) => {
@@ -293,6 +286,6 @@ export default function Dieta() {
           {protocolo.observacoes}
         </p>
       </Modal>
-    </AlunoLayout>
+    </>
   );
 }

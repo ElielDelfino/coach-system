@@ -1,107 +1,139 @@
 const router = require('express').Router();
-const c = require('../controllers/adminController');
+
+const dashboard      = require('../controllers/admin/dashboard');
+const alunos         = require('../controllers/admin/alunos');
+const medidas        = require('../controllers/admin/medidas');
+const fotos          = require('../controllers/admin/fotos');
+const pagamentos     = require('../controllers/admin/pagamentos');
+const faturas        = require('../controllers/admin/faturas');
+const exercicios     = require('../controllers/admin/exercicios');
+const alimentos      = require('../controllers/admin/alimentos');
+const cardio         = require('../controllers/admin/cardio');
+const protocolos     = require('../controllers/admin/protocolos');
+const refeicoes      = require('../controllers/admin/refeicoes');
+const treinos        = require('../controllers/admin/treinos');
+const suplementacao  = require('../controllers/admin/suplementacao');
+
 const { uploadThumbExerc, uploadVideoExerc, uploadFotoAlimento } = require('../middlewares/upload');
+const { validate } = require('../middlewares/validate');
+
+const alunoSchemas        = require('../schemas/alunos');
+const medidaSchemas       = require('../schemas/medidas');
+const fotoSchemas         = require('../schemas/fotos');
+const pagamentoSchemas    = require('../schemas/pagamentos');
+const faturaSchemas       = require('../schemas/faturas');
+const exercicioSchemas    = require('../schemas/exercicios');
+const alimentoSchemas     = require('../schemas/alimentos');
+const cardioSchemas       = require('../schemas/cardio');
+const protocoloSchemas    = require('../schemas/protocolos');
+const refeicaoSchemas     = require('../schemas/refeicoes');
+const treinoSchemas       = require('../schemas/treinos');
+const suplementoSchemas   = require('../schemas/suplementacao');
 
 // ─── dashboard ────────────────────────────────────────────────────────────────
-router.get('/dashboard/evolucao', c.dashboardEvolucao);
-router.get('/dashboard/resumo', c.dashboardResumo);
+router.get('/dashboard/evolucao', dashboard.dashboardEvolucao);
+router.get('/dashboard/resumo',   dashboard.dashboardResumo);
 
 // ─── alunos ───────────────────────────────────────────────────────────────────
-router.get('/alunos', c.listAlunos);
-router.post('/alunos', c.createAluno);
-router.get('/alunos/:id', c.getAluno);
-router.put('/alunos/:id', c.updateAluno);
-router.patch('/alunos/:id/ativar', c.ativarAluno);
-router.patch('/alunos/:id/desativar', c.desativarAluno);
-router.patch('/alunos/:id/senha', c.redefinirSenhaAluno);
-router.get('/alunos/:id/medidas', c.listMedidas);
-router.post('/alunos/:id/medidas', c.createMedida);
-router.get('/alunos/:id/medidas/:medidaId', c.getMedida);
-router.put('/alunos/:id/medidas/:medidaId', c.updateMedida);
-router.delete('/alunos/:id/medidas/:medidaId', c.deleteMedida);
-router.get('/alunos/:id/fotos', c.listFotos);
-router.patch('/alunos/:id/liberar-fotos', c.liberarFotos);
-router.delete('/alunos/:alunoId/fotos/:fotoId', c.deleteFoto);
-router.get('/alunos/:id/pagamentos', c.listPagamentosAluno);
-router.post('/alunos/:id/pagamentos', c.createPagamento);
-router.get('/alunos/:id/faturas', c.listFaturasAluno);
-router.post('/alunos/:id/faturas', c.createFatura);
-router.get('/alunos/:id/protocolos', c.listProtocolos);
-router.post('/alunos/:id/protocolos', c.createProtocolo);
+router.get   ('/alunos',                 alunos.listAlunos);
+router.post  ('/alunos',                 validate(alunoSchemas.createAluno),    alunos.createAluno);
+router.get   ('/alunos/:id',             alunos.getAluno);
+router.put   ('/alunos/:id',             validate(alunoSchemas.updateAluno),    alunos.updateAluno);
+router.patch ('/alunos/:id/ativar',      alunos.ativarAluno);
+router.patch ('/alunos/:id/desativar',   alunos.desativarAluno);
+router.patch ('/alunos/:id/senha',       validate(alunoSchemas.redefinirSenha), alunos.redefinirSenhaAluno);
+
+// ─── medidas ──────────────────────────────────────────────────────────────────
+router.get   ('/alunos/:id/medidas',                  medidas.listMedidas);
+router.post  ('/alunos/:id/medidas',                  validate(medidaSchemas.createMedida), medidas.createMedida);
+router.get   ('/alunos/:id/medidas/:medidaId',        medidas.getMedida);
+router.put   ('/alunos/:id/medidas/:medidaId',        validate(medidaSchemas.updateMedida), medidas.updateMedida);
+router.delete('/alunos/:id/medidas/:medidaId',        medidas.deleteMedida);
+
+// ─── fotos ────────────────────────────────────────────────────────────────────
+router.get   ('/alunos/:id/fotos',                 fotos.listFotos);
+router.patch ('/alunos/:id/liberar-fotos',         validate(fotoSchemas.liberarFotos), fotos.liberarFotos);
+router.delete('/alunos/:alunoId/fotos/:fotoId',    fotos.deleteFoto);
 
 // ─── pagamentos ───────────────────────────────────────────────────────────────
-router.get('/pagamentos', c.listPagamentos);
+router.get ('/pagamentos',                   pagamentos.listPagamentos);
+router.get ('/alunos/:id/pagamentos',        pagamentos.listPagamentosAluno);
+router.post('/alunos/:id/pagamentos',        validate(pagamentoSchemas.createPagamento), pagamentos.createPagamento);
 
 // ─── faturas ──────────────────────────────────────────────────────────────────
-router.put('/faturas/:id', c.updateFatura);
-router.patch('/faturas/:id/baixa', c.darBaixaFatura);
-router.delete('/faturas/:id', c.deleteFatura);
+router.get   ('/alunos/:id/faturas',  faturas.listFaturasAluno);
+router.post  ('/alunos/:id/faturas',  validate(faturaSchemas.createFatura),    faturas.createFatura);
+router.put   ('/faturas/:id',         validate(faturaSchemas.updateFatura),    faturas.updateFatura);
+router.patch ('/faturas/:id/baixa',   validate(faturaSchemas.darBaixaFatura),  faturas.darBaixaFatura);
+router.delete('/faturas/:id',         faturas.deleteFatura);
 
 // ─── exercicios ───────────────────────────────────────────────────────────────
-router.get('/exercicios', c.listExercicios);
-router.post('/exercicios', c.createExercicio);
-router.get('/exercicios/:id', c.getExercicio);
-router.put('/exercicios/:id', c.updateExercicio);
-router.put('/exercicios/:id/thumbnail', uploadThumbExerc, c.uploadThumbExercicio);
-router.put('/exercicios/:id/video', uploadVideoExerc, c.uploadVideoExercicio);
-router.patch('/exercicios/:id/ativar', c.ativarExercicio);
-router.patch('/exercicios/:id/desativar', c.desativarExercicio);
+router.get   ('/exercicios',                 exercicios.listExercicios);
+router.post  ('/exercicios',                 validate(exercicioSchemas.createExercicio), exercicios.createExercicio);
+router.get   ('/exercicios/:id',             exercicios.getExercicio);
+router.put   ('/exercicios/:id',             validate(exercicioSchemas.updateExercicio), exercicios.updateExercicio);
+router.put   ('/exercicios/:id/thumbnail',   uploadThumbExerc, exercicios.uploadThumbExercicio);
+router.put   ('/exercicios/:id/video',       uploadVideoExerc, exercicios.uploadVideoExercicio);
+router.patch ('/exercicios/:id/ativar',      exercicios.ativarExercicio);
+router.patch ('/exercicios/:id/desativar',   exercicios.desativarExercicio);
 
 // ─── alimentos ────────────────────────────────────────────────────────────────
-router.get('/alimentos', c.listAlimentos);
-router.post('/alimentos', c.createAlimento);
-router.get('/alimentos/:id', c.getAlimento);
-router.put('/alimentos/:id', c.updateAlimento);
-router.put('/alimentos/:id/foto', uploadFotoAlimento, c.uploadFotoAlimento);
-router.patch('/alimentos/:id/ativar', c.ativarAlimento);
-router.patch('/alimentos/:id/desativar', c.desativarAlimento);
+router.get   ('/alimentos',                 alimentos.listAlimentos);
+router.post  ('/alimentos',                 validate(alimentoSchemas.createAlimento), alimentos.createAlimento);
+router.get   ('/alimentos/:id',             alimentos.getAlimento);
+router.put   ('/alimentos/:id',             validate(alimentoSchemas.updateAlimento), alimentos.updateAlimento);
+router.put   ('/alimentos/:id/foto',        uploadFotoAlimento, alimentos.uploadFotoAlimento);
+router.patch ('/alimentos/:id/ativar',      alimentos.ativarAlimento);
+router.patch ('/alimentos/:id/desativar',   alimentos.desativarAlimento);
 
 // ─── cardio ───────────────────────────────────────────────────────────────────
-router.get('/cardio', c.listCardio);
-router.post('/cardio', c.createCardio);
-router.get('/cardio/:id', c.getCardio);
-router.put('/cardio/:id', c.updateCardio);
-router.patch('/cardio/:id/desativar', c.desativarCardio);
+router.get   ('/cardio',                  cardio.listCardio);
+router.post  ('/cardio',                  validate(cardioSchemas.createCardio), cardio.createCardio);
+router.get   ('/cardio/:id',              cardio.getCardio);
+router.put   ('/cardio/:id',              validate(cardioSchemas.updateCardio), cardio.updateCardio);
+router.patch ('/cardio/:id/desativar',    cardio.desativarCardio);
 
 // ─── protocolos ───────────────────────────────────────────────────────────────
-router.get('/protocolos/:id', c.getProtocolo);
-router.put('/protocolos/:id', c.updateProtocolo);
-router.delete('/protocolos/:id', c.deleteProtocolo);
-router.patch('/protocolos/:id/ativar', c.ativarProtocolo);
-router.patch('/protocolos/:id/desativar', c.desativarProtocolo);
-router.get('/protocolos/:id/refeicoes', c.listRefeicoes);
-router.post('/protocolos/:id/refeicoes', c.createRefeicao);
-router.get('/protocolos/:id/treinos', c.listTreinos);
-router.post('/protocolos/:id/treinos', c.createTreino);
-router.get('/protocolos/:id/suplementacao', c.listSuplementacao);
-router.post('/protocolos/:id/suplementacao', c.createSuplemento);
-router.get('/protocolos/:id/pdf', c.baixarProtocoloPdf);
-router.post('/protocolos/:id/enviar-pdf', c.enviarProtocoloPdf);
+router.get   ('/alunos/:id/protocolos',        protocolos.listProtocolos);
+router.post  ('/alunos/:id/protocolos',        validate(protocoloSchemas.createProtocolo), protocolos.createProtocolo);
+router.get   ('/protocolos/:id',               protocolos.getProtocolo);
+router.put   ('/protocolos/:id',               validate(protocoloSchemas.updateProtocolo), protocolos.updateProtocolo);
+router.delete('/protocolos/:id',               protocolos.deleteProtocolo);
+router.patch ('/protocolos/:id/ativar',        protocolos.ativarProtocolo);
+router.patch ('/protocolos/:id/desativar',     protocolos.desativarProtocolo);
+router.get   ('/protocolos/:id/pdf',           protocolos.baixarProtocoloPdf);
+router.post  ('/protocolos/:id/enviar-pdf',    protocolos.enviarProtocoloPdf);
 
 // ─── refeicoes ────────────────────────────────────────────────────────────────
-router.post('/refeicoes/:id/duplicar', c.duplicarRefeicao);
-router.put('/refeicoes/:id', c.updateRefeicao);
-router.delete('/refeicoes/:id', c.deleteRefeicao);
-router.post('/refeicoes/:id/itens', c.createRefeicaoItem);
+router.get   ('/protocolos/:id/refeicoes',     refeicoes.listRefeicoes);
+router.post  ('/protocolos/:id/refeicoes',     validate(refeicaoSchemas.createRefeicao),     refeicoes.createRefeicao);
+router.post  ('/refeicoes/:id/duplicar',       validate(refeicaoSchemas.duplicarRefeicao),   refeicoes.duplicarRefeicao);
+router.put   ('/refeicoes/:id',                validate(refeicaoSchemas.updateRefeicao),     refeicoes.updateRefeicao);
+router.delete('/refeicoes/:id',                refeicoes.deleteRefeicao);
+router.post  ('/refeicoes/:id/itens',          validate(refeicaoSchemas.createRefeicaoItem), refeicoes.createRefeicaoItem);
 // reordenar DEVE vir antes de /:itemId para não conflitar com método PATCH
-router.patch('/refeicoes/:refeicaoId/itens/reordenar', c.reordenarItens);
-router.put('/refeicoes/:refeicaoId/itens/:itemId', c.updateRefeicaoItem);
-router.delete('/refeicoes/:refeicaoId/itens/:itemId', c.deleteRefeicaoItem);
-router.post('/refeicoes/:refeicaoId/itens/:itemId/substitutos', c.createSubstituto);
-router.delete('/refeicoes/:refeicaoId/itens/:itemId/substitutos/:substitutoId', c.deleteSubstituto);
+router.patch ('/refeicoes/:refeicaoId/itens/reordenar',                        validate(refeicaoSchemas.reordenarItens),     refeicoes.reordenarItens);
+router.put   ('/refeicoes/:refeicaoId/itens/:itemId',                          validate(refeicaoSchemas.updateRefeicaoItem), refeicoes.updateRefeicaoItem);
+router.delete('/refeicoes/:refeicaoId/itens/:itemId',                          refeicoes.deleteRefeicaoItem);
+router.post  ('/refeicoes/:refeicaoId/itens/:itemId/substitutos',              validate(refeicaoSchemas.createSubstituto),   refeicoes.createSubstituto);
+router.delete('/refeicoes/:refeicaoId/itens/:itemId/substitutos/:substitutoId', refeicoes.deleteSubstituto);
 
 // ─── treinos ──────────────────────────────────────────────────────────────────
-router.put('/treinos/:id', c.updateTreino);
-router.delete('/treinos/:id', c.deleteTreino);
-router.post('/treinos/:id/duplicar', c.duplicarTreino);
-router.post('/treinos/:id/exercicios', c.createTreinoExercicio);
+router.get   ('/protocolos/:id/treinos',     treinos.listTreinos);
+router.post  ('/protocolos/:id/treinos',     validate(treinoSchemas.createTreino),     treinos.createTreino);
+router.put   ('/treinos/:id',                validate(treinoSchemas.updateTreino),     treinos.updateTreino);
+router.delete('/treinos/:id',                treinos.deleteTreino);
+router.post  ('/treinos/:id/duplicar',       validate(treinoSchemas.duplicarTreino),   treinos.duplicarTreino);
+router.post  ('/treinos/:id/exercicios',     validate(treinoSchemas.createTreinoExercicio), treinos.createTreinoExercicio);
 // reordenar DEVE vir antes de /:itemId para não conflitar com método PATCH
-router.patch('/treinos/:treinoId/exercicios/reordenar', c.reordenarTreinoExercicios);
-router.put('/treinos/:treinoId/exercicios/:itemId', c.updateTreinoExercicio);
-router.delete('/treinos/:treinoId/exercicios/:itemId', c.deleteTreinoExercicio);
+router.patch ('/treinos/:treinoId/exercicios/reordenar',  validate(treinoSchemas.reordenarTreinoExercicios), treinos.reordenarTreinoExercicios);
+router.put   ('/treinos/:treinoId/exercicios/:itemId',    validate(treinoSchemas.updateTreinoExercicio),    treinos.updateTreinoExercicio);
+router.delete('/treinos/:treinoId/exercicios/:itemId',    treinos.deleteTreinoExercicio);
 
 // ─── suplementacao ────────────────────────────────────────────────────────────
-router.put('/suplementacao/:id', c.updateSuplemento);
-router.delete('/suplementacao/:id', c.deleteSuplemento);
+router.get   ('/protocolos/:id/suplementacao',  suplementacao.listSuplementacao);
+router.post  ('/protocolos/:id/suplementacao',  validate(suplementoSchemas.createSuplemento), suplementacao.createSuplemento);
+router.put   ('/suplementacao/:id',             validate(suplementoSchemas.updateSuplemento), suplementacao.updateSuplemento);
+router.delete('/suplementacao/:id',             suplementacao.deleteSuplemento);
 
 module.exports = router;

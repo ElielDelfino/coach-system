@@ -4,6 +4,15 @@
 > **Auth:** Bearer token no header `Authorization: Bearer <access_token>`
 > **Refresh token:** cookie httpOnly `refreshToken`
 > Todo erro retorna `{ "message": "string" }`.
+>
+> **Hardening de produção:**
+> - `helmet` aplica headers de segurança em todas as respostas.
+> - `express.json()` com limite de `1mb` no body.
+> - Rate limit em `/api/auth/login`: 10 requisições / 15 min por IP.
+> - Rate limit geral em `/api`: 120 requisições / minuto por IP.
+> - Endpoint `GET /health` retorna `{ "status": "ok" }` (sem auth, sem rate limit aplicado em outras camadas).
+>
+> Quando o rate limit é atingido a resposta é `429 Too Many Requests` com `{ "message": "..." }`.
 
 ---
 
@@ -476,6 +485,58 @@ Redefine a senha do usuário vinculado ao aluno. A senha é re-hasheada com bcry
 
 ---
 
+## GET /api/admin/alunos/:id/medidas/:medidaId
+
+**Auth:** Bearer token
+**Role:** admin
+
+Retorna uma medição específica do aluno. O `:id` valida o vínculo entre a medição e o aluno (evita acesso cruzado).
+
+**Response 200:** objeto completo da medição (mesmos campos do POST + `id`, `created_at`, `updated_at`).
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Medição não encontrada ou não pertence ao aluno
+
+---
+
+## PUT /api/admin/alunos/:id/medidas/:medidaId
+
+**Auth:** Bearer token
+**Role:** admin
+
+**Body:** mesmo schema do `POST /alunos/:id/medidas` (todos os campos opcionais).
+
+**Response 200:**
+```json
+{ "message": "Medição atualizada." }
+```
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Medição não encontrada ou não pertence ao aluno
+
+---
+
+## DELETE /api/admin/alunos/:id/medidas/:medidaId
+
+**Auth:** Bearer token
+**Role:** admin
+
+**Response 200:**
+```json
+{ "message": "Medição removida." }
+```
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Medição não encontrada ou não pertence ao aluno
+
+---
+
 ## GET /api/admin/alunos/:id/fotos
 
 **Auth:** Bearer token
@@ -501,30 +562,32 @@ Redefine a senha do usuário vinculado ao aluno. A senha é re-hasheada com bcry
 
 ---
 
-## POST /api/admin/alunos/:id/fotos
+## PATCH /api/admin/alunos/:id/liberar-fotos
 
 **Auth:** Bearer token
 **Role:** admin
 
+Libera ou bloqueia o envio de fotos de progresso pelo aluno. Quando bloqueado, o `POST /api/aluno/fotos` responde `403`.
+
 **Body:**
 ```json
+{ "liberado": true }
+```
+
+**Response 200:**
+```json
 {
-  "url": "string",
-  "posicao": "frente | costas | lado_dir | lado_esq",
-  "data_foto": "date?"
+  "message": "Envio de fotos liberado.",
+  "envio_fotos_liberado": true
 }
 ```
 
-**Response 201:**
-```json
-{ "id": "uuid", "url": "string", "posicao": "string", "data_foto": "date" }
-```
-
 **Erros:**
-- `400` — url ausente ou posição inválida
 - `401` — Não autenticado
 - `403` — Perfil sem permissão
 - `404` — Aluno não encontrado
+
+> Observação: o upload de fotos do aluno só ocorre via `POST /api/aluno/fotos` (rota self-service). Não existe endpoint admin para upload de fotos do aluno.
 
 ---
 
@@ -1430,6 +1493,42 @@ A foto anterior (se houver `foto_s3_key`) é removida do S3 automaticamente.
 
 ---
 
+## DELETE /api/admin/protocolos/:id
+
+**Auth:** Bearer token
+**Role:** admin
+
+Remove o protocolo definitivamente. Em cascata: refeições, itens, substitutos, treinos, exercícios do treino e suplementação.
+
+**Response 200:**
+```json
+{ "message": "Protocolo removido." }
+```
+
+**Erros:** `401`, `403`, `404`
+
+---
+
+## GET /api/admin/protocolos/:id/pdf
+
+**Auth:** Bearer token
+**Role:** admin
+
+Gera o PDF completo do protocolo (cabeçalho com dados físicos + alimentação + treinos + suplementação, conforme módulos habilitados) e retorna o arquivo binário para download direto no navegador.
+
+**Response 200:**
+- `Content-Type: application/pdf`
+- `Content-Disposition: attachment; filename="protocolo-<slug>.pdf"`
+- Body: bytes do PDF.
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Protocolo ou aluno do protocolo não encontrado
+- `500` — Falha ao gerar PDF (Puppeteer)
+
+---
+
 ## POST /api/admin/protocolos/:id/enviar-pdf
 
 **Auth:** Bearer token
@@ -1816,6 +1915,29 @@ Macros são recalculados automaticamente.
 ```
 
 **Erros:** `401`, `403`, `404`
+
+---
+
+## POST /api/admin/treinos/:id/duplicar
+
+**Auth:** Bearer token
+**Role:** admin
+
+Cria um novo treino no mesmo protocolo do treino de origem, copiando todos os itens (`treino_exercicios`) — incluindo séries, repetições, descanso, intensidade e referências a exercícios/cardio.
+
+**Body (opcional):**
+```json
+{ "nome": "string?", "ordem": 0 }
+```
+
+Se `nome` não for enviado, o treino duplicado recebe `"<nome original> (cópia)"`. Se `ordem` não for enviada, é colocado após o último treino do protocolo.
+
+**Response 201:** objeto do novo treino (mesmos campos do `POST /protocolos/:id/treinos`).
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Perfil sem permissão
+- `404` — Treino de origem não encontrado
 
 ---
 
@@ -2222,6 +2344,26 @@ Notas:
 - `401` — Não autenticado
 - `403` — Protocolo não pertence ao aluno autenticado
 - `404` — Protocolo não encontrado
+
+---
+
+## GET /api/aluno/protocolos/:id/pdf
+
+**Auth:** Bearer token
+**Role:** aluno
+
+Gera o PDF do protocolo (apenas se pertencer ao aluno autenticado) e devolve o arquivo binário para download.
+
+**Response 200:**
+- `Content-Type: application/pdf`
+- `Content-Disposition: attachment; filename="protocolo-<slug>.pdf"`
+- Body: bytes do PDF.
+
+**Erros:**
+- `401` — Não autenticado
+- `403` — Protocolo não pertence ao aluno autenticado
+- `404` — Protocolo não encontrado
+- `500` — Falha ao gerar PDF
 
 ---
 

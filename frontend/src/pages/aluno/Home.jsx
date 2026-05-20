@@ -4,7 +4,6 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast, errorMessage } from '../../components/ui/Toast';
 import PageLoader from '../../components/ui/PageLoader';
-import AlunoLayout from './AlunoLayout';
 
 function primeiroNome(nome) {
   if (!nome) return 'Aluno';
@@ -86,19 +85,14 @@ export default function Home() {
   }, [refeicoes]);
 
   if (loading || !perfil) {
-    return (
-      <AlunoLayout paginaAtiva="home">
-        <PageLoader mensagem="Carregando..." />
-      </AlunoLayout>
-    );
+    return <PageLoader mensagem="Carregando..." />;
   }
 
   const META_AGUA = Number(protocolo?.meta_agua_litros) || 2.5;
   const pctAgua = META_AGUA > 0 ? Math.min(100, (aguaIngerida / META_AGUA) * 100) : 0;
 
   return (
-    <AlunoLayout paginaAtiva="home">
-      <div className="px-5 pt-8 pb-4">
+    <div className="px-5 pt-8 pb-4">
         <p className="text-zinc-400 text-sm">Bem vindo(a),</p>
         <h1 className="text-3xl font-black text-white tracking-tight mb-6">
           {primeiroNome(perfil.nome)}
@@ -200,7 +194,6 @@ export default function Home() {
           </div>
           <p className="text-zinc-400 text-sm mt-2">{aguaIngerida.toFixed(1)} litros</p>
         </div>
-      </div>
-    </AlunoLayout>
+    </div>
   );
 }

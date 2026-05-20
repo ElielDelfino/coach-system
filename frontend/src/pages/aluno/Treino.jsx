@@ -5,7 +5,6 @@ import { useToast, errorMessage } from '../../components/ui/Toast';
 import PageLoader from '../../components/ui/PageLoader';
 import EmptyState from '../../components/ui/EmptyState';
 import Modal from '../../components/ui/Modal';
-import AlunoLayout from './AlunoLayout';
 
 export default function Treino() {
   const navigate = useNavigate();
@@ -47,29 +46,23 @@ export default function Treino() {
   }, [toast]);
 
   if (loading) {
-    return (
-      <AlunoLayout paginaAtiva="treino">
-        <PageLoader mensagem="Carregando treinos..." />
-      </AlunoLayout>
-    );
+    return <PageLoader mensagem="Carregando treinos..." />;
   }
 
   if (!protocolo) {
     return (
-      <AlunoLayout paginaAtiva="treino">
-        <div className="px-5 pt-12">
-          <EmptyState
-            icone="🏋️"
-            titulo="Nenhum protocolo ativo"
-            descricao="Seu professor ainda não criou um protocolo para você."
-          />
-        </div>
-      </AlunoLayout>
+      <div className="px-5 pt-12">
+        <EmptyState
+          icone="🏋️"
+          titulo="Nenhum protocolo ativo"
+          descricao="Seu professor ainda não criou um protocolo para você."
+        />
+      </div>
     );
   }
 
   return (
-    <AlunoLayout paginaAtiva="treino">
+    <>
       <div className="px-5 pt-8">
         <h1 className="text-3xl font-black text-white mb-3">Treinos</h1>
 
@@ -119,6 +112,6 @@ export default function Treino() {
           {protocolo.observacoes}
         </p>
       </Modal>
-    </AlunoLayout>
+    </>
   );
 }

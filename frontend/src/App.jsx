@@ -12,6 +12,7 @@ import Alimentos from './pages/admin/Alimentos';
 import Cardio from './pages/admin/Cardio';
 import ProtocoloBuilder from './pages/admin/ProtocoloBuilder';
 
+import AlunoLayout from './pages/aluno/AlunoLayout';
 import AlunoHome from './pages/aluno/Home';
 import AlunoTreino from './pages/aluno/Treino';
 import TreinoExecucao from './pages/aluno/TreinoExecucao';
@@ -46,12 +47,18 @@ function AlunoShell() {
   return (
     <div className="min-h-screen bg-surface">
       <Routes>
-        <Route path="home" element={<AlunoHome />} />
-        <Route path="treino" element={<AlunoTreino />} />
+        {/* Telas standalone (sem nav inferior) */}
         <Route path="treino/:protocoloId/:treinoId" element={<TreinoExecucao />} />
-        <Route path="dieta" element={<AlunoDieta />} />
         <Route path="dieta/:refeicaoId" element={<RefeicaoDetalhe />} />
-        <Route path="perfil" element={<AlunoPerfil />} />
+
+        {/* Telas com nav inferior compartilhada via AlunoLayout */}
+        <Route element={<AlunoLayout />}>
+          <Route path="home"   element={<AlunoHome />} />
+          <Route path="treino" element={<AlunoTreino />} />
+          <Route path="dieta"  element={<AlunoDieta />} />
+          <Route path="perfil" element={<AlunoPerfil />} />
+        </Route>
+
         <Route path="*" element={<Navigate to="home" replace />} />
       </Routes>
     </div>

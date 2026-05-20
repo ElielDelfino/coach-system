@@ -10,6 +10,35 @@
 - Variáveis: sempre via `process.env` — nunca hardcoded
 - Queries SQL: sempre com parâmetros posicionais ($1, $2) — nunca interpolação de string
 
+### Estrutura de pastas — um arquivo por domínio
+
+```
+backend/src/
+├── controllers/
+│   ├── admin/
+│   │   ├── alunos.js          ← um controller por domínio (alunos, medidas, fotos, ...)
+│   │   ├── medidas.js
+│   │   └── ...
+│   ├── alunoController.js     ← self-service do aluno (uma única tela única)
+│   └── authController.js
+├── models/
+│   ├── _shared.js             ← helpers cross-domínio (puros, sem I/O)
+│   ├── alunos.js              ← um model por domínio
+│   ├── medidas.js
+│   ├── ...
+│   └── index.js               ← barrel re-export — controllers importam daqui
+└── routes/
+    └── admin.js               ← mapeia URL → controller de domínio
+```
+
+**Regras do padrão:**
+- Um arquivo de model **por domínio** (uma ou duas tabelas relacionadas). Quando passar de ~200 linhas ou começar a misturar dois domínios, separa.
+- **Helpers cross-domínio** (cálculo de macros, status SQL, normalização de fatura) vivem em `models/_shared.js`. Nunca duplicar entre arquivos.
+- Toda função puramente SQL fica no model. Validação, status HTTP e mensagens vivem no controller.
+- Queries cross-tabela (PDF de protocolo precisa de refeições + treinos + medidas) são compostas no **controller**, chamando várias funções model. Não criar "model misturado".
+- Controllers fazem `require('../../models')` (o barrel). Não importar arquivo de domínio direto, para manter o ponto único de evolução.
+- Cada controller importa **apenas** o que precisa do `services/` (storage, pdf, email) — não imports gerais.
+
 ### Status codes
 | Código | Uso |
 |--------|-----|

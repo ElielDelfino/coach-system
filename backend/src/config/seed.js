@@ -1,9 +1,14 @@
 const bcrypt = require('bcryptjs');
 const pool = require('./db');
+const { BOOT_LOCK_KEY } = require('./migrate');
 
 async function seed() {
   const client = await pool.connect();
+  let locked = false;
   try {
+    await client.query('SELECT pg_advisory_lock($1)', [BOOT_LOCK_KEY]);
+    locked = true;
+
     const { rows } = await client.query(
       `SELECT id FROM users WHERE role = 'admin' LIMIT 1`
     );
@@ -22,6 +27,13 @@ async function seed() {
 
     console.log('[seed] Admin padrão criado.');
   } finally {
+    if (locked) {
+      try {
+        await client.query('SELECT pg_advisory_unlock($1)', [BOOT_LOCK_KEY]);
+      } catch (err) {
+        console.error('[seed] Falha ao liberar advisory lock:', err.message);
+      }
+    }
     client.release();
   }
 }
