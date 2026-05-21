@@ -184,3 +184,12 @@ async function migrate() {
 
 module.exports = migrate;
 module.exports.BOOT_LOCK_KEY = BOOT_LOCK_KEY;
+
+if (require.main === module) {
+  migrate()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      logger.error({ err }, 'migrate: failed');
+      process.exit(1);
+    });
+}
