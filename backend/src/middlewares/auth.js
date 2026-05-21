@@ -27,20 +27,31 @@ async function auth(req, res, next) {
     req.token = token;
 
     if (decoded.role === 'aluno') {
-      const { rows } = await pool.query(`
-        SELECT
-          a.ativo,
-          a.dias_tolerancia,
-          EXISTS (
-            SELECT 1 FROM faturas
-            WHERE aluno_id = a.id
-            AND status = 'pendente'
-            AND data_vencimento + (a.dias_tolerancia || ' days')::interval < NOW()
-          ) as inadimplente
-        FROM alunos a WHERE a.user_id = $1
-      `, [decoded.id]);
+      const cacheKey = `aluno_status:${decoded.id}`;
+      let aluno;
 
-      const aluno = rows[0];
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        aluno = JSON.parse(cached);
+      } else {
+        const { rows } = await pool.query(`
+          SELECT
+            a.ativo,
+            a.dias_tolerancia,
+            EXISTS (
+              SELECT 1 FROM faturas
+              WHERE aluno_id = a.id
+              AND status = 'pendente'
+              AND data_vencimento + (a.dias_tolerancia || ' days')::interval < NOW()
+            ) as inadimplente
+          FROM alunos a WHERE a.user_id = $1
+        `, [decoded.id]);
+        aluno = rows[0];
+        if (aluno) {
+          await redis.set(cacheKey, JSON.stringify(aluno), 'EX', 60);
+        }
+      }
+
       if (!aluno || !aluno.ativo) {
         return res.status(403).json({ message: 'Conta inativa.', code: 'INATIVO' });
       }

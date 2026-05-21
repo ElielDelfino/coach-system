@@ -1,0 +1,1710 @@
+From 77e14a34933f94250cc8758a909b8c5231bf6ed5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 21 May 2026 00:02:45 +0000
+Subject: [PATCH] =?UTF-8?q?feat(aluno):=20refactor=20area=20do=20aluno=20?=
+ =?UTF-8?q?=E2=80=94=20sess=C3=B5es=20persistidas,=20rota=C3=A7=C3=A3o=20d?=
+ =?UTF-8?q?e=20treinos,=20progresso=20real?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fase 1 — bugs do timer/refazer (TreinoExecucao.jsx):
+- Timer da sessão só conta com sessaoAtiva=true; pausa automática na tela de Parabéns.
+- Botão pausa/retomar manual no header da sessão.
+- Botão "Refazer treino" na tela de Parabéns (limpa localStorage e cria nova sessão).
+
+Fase 2 — backend de sessões + progresso real:
+- M014: nova tabela treino_sessoes (UUID + JSONB + índices por aluno_id/concluido_em).
+- models/treinoSessoes.js: iniciarSessao, concluirSessao, ultimaSessaoConcluida, sessoesNaSemana.
+- Controller alunoController: iniciarSessaoTreino, concluirSessaoTreino, getProximoTreino,
+  getProgressoSemanal. Próximo treino = rotação sequencial por treinos.ordem. Progresso
+  multi-fator (treinos da semana + medidas + fotos, score ponderado) com cache Redis 5min.
+- Rotas: POST /aluno/treinos/:id/sessoes, PATCH .../concluir, GET /progresso-semanal,
+  GET /proximo-treino — validate(zod) onde fazem sentido.
+- 7 testes vitest (.test.mjs com vi.spyOn(pool, 'query')).
+- Frontend TreinoExecucao chama POST/PATCH; Home consome /progresso-semanal e /proximo-treino.
+
+Fase 3 — Zustand + React Query + UX:
+- store/aluno.js (zustand + persist) substitui chaves localStorage cruzadas (agua_*, treino_dia_*).
+  Migração one-shot em AlunoLayout via migrarLocalStorage().
+- lib/queryClient.js + hooks/aluno/queries.js (usePerfil, useProtocoloAtivo, useRefeicoes,
+  useTreinos, useProgressoSemanal, useProximoTreino, useConcluirSessao).
+- App.jsx envolto em QueryClientProvider.
+- Home.jsx reescrito com hooks; saudação por hora, score circular animado (RadialBarChart),
+  gradient + fade-in framer-motion no card de próximo treino.
+- TreinoExecucao: confetti + vibração háptica na conclusão; vibração curta ao concluir
+  cada exercício.
+
+Adicionado backend/src/config/logger.js (pino) — completa o refactor Bloco 6 que estava
+referenciado mas faltava no working tree.
+---
+ backend/src/config/logger.js                |   9 +
+ backend/src/config/migrate.js               |  24 +-
+ backend/src/controllers/alunoController.js  | 211 ++++++++++++-
+ backend/src/models/index.js                 |   1 +
+ backend/src/models/treinoSessoes.js         |  56 ++++
+ backend/src/models/treinoSessoes.test.mjs   |  98 ++++++
+ backend/src/routes/aluno.js                 |   7 +
+ backend/src/schemas/treinoSessoes.js        |   9 +
+ docs/schema.sql                             |  15 +
+ frontend/package-lock.json                  | 113 ++++++-
+ frontend/package.json                       |   6 +-
+ frontend/src/App.jsx                        |  92 +++---
+ frontend/src/hooks/aluno/queries.js         |  69 +++++
+ frontend/src/lib/queryClient.js             |  12 +
+ frontend/src/pages/aluno/AlunoLayout.jsx    |   8 +
+ frontend/src/pages/aluno/Home.jsx           | 318 ++++++++++----------
+ frontend/src/pages/aluno/TreinoExecucao.jsx |  95 +++++-
+ frontend/src/store/aluno.js                 |  54 ++++
+ 18 files changed, 963 insertions(+), 234 deletions(-)
+ create mode 100644 backend/src/config/logger.js
+ create mode 100644 backend/src/models/treinoSessoes.js
+ create mode 100644 backend/src/models/treinoSessoes.test.mjs
+ create mode 100644 backend/src/schemas/treinoSessoes.js
+ create mode 100644 frontend/src/hooks/aluno/queries.js
+ create mode 100644 frontend/src/lib/queryClient.js
+ create mode 100644 frontend/src/store/aluno.js
+
+diff --git a/backend/src/config/logger.js b/backend/src/config/logger.js
+new file mode 100644
+index 0000000..c013aa0
+--- /dev/null
++++ b/backend/src/config/logger.js
+@@ -0,0 +1,9 @@
++const pino = require('pino');
++
++const logger = pino({
++  level: process.env.LOG_LEVEL || 'info',
++  base: undefined,
++  timestamp: pino.stdTimeFunctions.isoTime,
++});
++
++module.exports = logger;
+diff --git a/backend/src/config/migrate.js b/backend/src/config/migrate.js
+index 9e88452..3163765 100644
+--- a/backend/src/config/migrate.js
++++ b/backend/src/config/migrate.js
+@@ -1,6 +1,7 @@
+ const fs = require('fs');
+ const path = require('path');
+ const pool = require('./db');
++const logger = require('./logger');
+ 
+ // Lock cross-réplicas: garante que apenas uma réplica execute migrações/seed por vez.
+ // Compartilhado com seed.js — ambos usam a mesma chave para serializar o boot.
+@@ -26,7 +27,7 @@ async function migrate() {
+         'utf-8'
+       );
+       await client.query(sql);
+-      console.log('[migrate] Schema aplicado com sucesso.');
++      logger.info('migrate: schema applied');
+     } else {
+       // Migrações idempotentes — aplica sempre
+       await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nome TEXT`);
+@@ -135,7 +136,24 @@ async function migrate() {
+           ADD COLUMN IF NOT EXISTS finalizado BOOLEAN NOT NULL DEFAULT false
+       `);
+ 
+-      console.log('[migrate] Migrações incrementais aplicadas.');
++      // M014: histórico de sessões de treino executadas pelo aluno
++      await client.query(`
++        CREATE TABLE IF NOT EXISTS treino_sessoes (
++          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++          aluno_id      UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
++          treino_id     UUID NOT NULL REFERENCES treinos(id) ON DELETE CASCADE,
++          iniciado_em   TIMESTAMP NOT NULL DEFAULT NOW(),
++          concluido_em  TIMESTAMP,
++          duracao_seg   INT,
++          exercicios    JSONB NOT NULL DEFAULT '[]'::jsonb,
++          observacao    TEXT,
++          created_at    TIMESTAMP NOT NULL DEFAULT NOW()
++        )
++      `);
++      await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_aluno_data ON treino_sessoes (aluno_id, concluido_em DESC)`);
++      await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_treino    ON treino_sessoes (treino_id)`);
++
++      logger.info('migrate: incremental migrations applied');
+     }
+ 
+     // Trigger de updated_at para faturas (idempotente)
+@@ -157,7 +175,7 @@ async function migrate() {
+       try {
+         await client.query('SELECT pg_advisory_unlock($1)', [BOOT_LOCK_KEY]);
+       } catch (err) {
+-        console.error('[migrate] Falha ao liberar advisory lock:', err.message);
++        logger.error({ err }, 'migrate: failed to release advisory lock');
+       }
+     }
+     client.release();
+diff --git a/backend/src/controllers/alunoController.js b/backend/src/controllers/alunoController.js
+index d9957a3..81eb6b5 100644
+--- a/backend/src/controllers/alunoController.js
++++ b/backend/src/controllers/alunoController.js
+@@ -1,7 +1,18 @@
+ const alunoModel = require('../models');
+ const pool = require('../config/db');
++const redis = require('../config/redis');
+ const { gerarPDFProtocolo } = require('../services/pdf');
+ 
++function chaveProgresso(aluno_id) {
++  const agora = new Date();
++  const ano = agora.getUTCFullYear();
++  // Semana ISO aproximada (suficiente para invalidação local — não precisa ser exata).
++  const inicioAno = new Date(Date.UTC(ano, 0, 1));
++  const diasDoAno = Math.floor((agora - inicioAno) / 86400000);
++  const semana = Math.ceil((diasDoAno + inicioAno.getUTCDay() + 1) / 7);
++  return `progresso:${aluno_id}:${ano}-${semana}`;
++}
++
+ const POSICOES_FOTO = ['frente', 'costas', 'lado_dir', 'lado_esq'];
+ 
+ async function getPerfil(req, res) {
+@@ -10,7 +21,7 @@ async function getPerfil(req, res) {
+     if (!perfil) return res.status(404).json({ message: 'Perfil não encontrado.' });
+     return res.json(perfil);
+   } catch (err) {
+-    console.error('[aluno/getPerfil]', err);
++    req.log.error({ err }, 'aluno/getPerfil');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -47,7 +58,7 @@ async function getEvolucao(req, res) {
+     }));
+     return res.json({ evolucao });
+   } catch (err) {
+-    console.error('[aluno/getEvolucao]', err);
++    req.log.error({ err }, 'aluno/getEvolucao');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -59,7 +70,7 @@ async function getMedidas(req, res) {
+     const medidas = await alunoModel.findMedidas(aluno_id);
+     return res.json(medidas);
+   } catch (err) {
+-    console.error('[aluno/getMedidas]', err);
++    req.log.error({ err }, 'aluno/getMedidas');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -71,7 +82,7 @@ async function getFotos(req, res) {
+     const fotos = await alunoModel.findFotos(aluno_id);
+     return res.json(fotos);
+   } catch (err) {
+-    console.error('[aluno/getFotos]', err);
++    req.log.error({ err }, 'aluno/getFotos');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -108,7 +119,7 @@ async function createFoto(req, res) {
+     });
+     return res.status(201).json(foto);
+   } catch (err) {
+-    console.error('[aluno/createFoto]', err);
++    req.log.error({ err }, 'aluno/createFoto');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -149,7 +160,7 @@ async function baixarProtocoloPdf(req, res) {
+     res.setHeader('Cache-Control', 'no-cache');
+     return res.end(pdfBuffer, 'binary');
+   } catch (err) {
+-    console.error('[aluno/baixarProtocoloPdf]', err);
++    req.log.error({ err }, 'aluno/baixarProtocoloPdf');
+     return res.status(500).json({ message: 'Erro ao gerar o PDF. Tente novamente.' });
+   }
+ }
+@@ -161,7 +172,7 @@ async function getPagamentos(req, res) {
+     const pagamentos = await alunoModel.findPagamentos(aluno_id);
+     return res.json(pagamentos);
+   } catch (err) {
+-    console.error('[aluno/getPagamentos]', err);
++    req.log.error({ err }, 'aluno/getPagamentos');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -171,7 +182,7 @@ async function getFaturas(req, res) {
+     const faturas = await alunoModel.findFaturasByAlunoUserId(req.user.id);
+     return res.json(faturas);
+   } catch (err) {
+-    console.error('[aluno/getFaturas]', err);
++    req.log.error({ err }, 'aluno/getFaturas');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -183,7 +194,7 @@ async function listProtocolos(req, res) {
+     const protocolos = await alunoModel.findProtocolos(aluno_id);
+     return res.json(protocolos);
+   } catch (err) {
+-    console.error('[aluno/listProtocolos]', err);
++    req.log.error({ err }, 'aluno/listProtocolos');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -197,7 +208,7 @@ async function getProtocolo(req, res) {
+     if (protocolo.aluno_id !== aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+     return res.json(protocolo);
+   } catch (err) {
+-    console.error('[aluno/getProtocolo]', err);
++    req.log.error({ err }, 'aluno/getProtocolo');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -212,7 +223,7 @@ async function getRefeicoes(req, res) {
+     const refeicoes = await alunoModel.findRefeicoes(req.params.id);
+     return res.json(refeicoes);
+   } catch (err) {
+-    console.error('[aluno/getRefeicoes]', err);
++    req.log.error({ err }, 'aluno/getRefeicoes');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -227,7 +238,7 @@ async function getTreinos(req, res) {
+     const treinos = await alunoModel.findTreinos(req.params.id);
+     return res.json(treinos);
+   } catch (err) {
+-    console.error('[aluno/getTreinos]', err);
++    req.log.error({ err }, 'aluno/getTreinos');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -242,7 +253,180 @@ async function getSuplementacao(req, res) {
+     const sups = await alunoModel.findSuplementacao(req.params.id);
+     return res.json(sups);
+   } catch (err) {
+-    console.error('[aluno/getSuplementacao]', err);
++    req.log.error({ err }, 'aluno/getSuplementacao');
++    return res.status(500).json({ message: 'Erro interno do servidor.' });
++  }
++}
++
++async function iniciarSessaoTreino(req, res) {
++  try {
++    const aluno_id = req.user.aluno_id;
++    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
++
++    const { treinoId } = req.params;
++
++    // Garante que o treino pertence a um protocolo do aluno
++    const { rows } = await pool.query(
++      `SELECT t.id
++         FROM treinos t
++         JOIN protocolos p ON p.id = t.protocolo_id
++        WHERE t.id = $1 AND p.aluno_id = $2`,
++      [treinoId, aluno_id]
++    );
++    if (!rows.length) return res.status(404).json({ message: 'Treino não encontrado.' });
++
++    const sessao = await alunoModel.iniciarSessao(aluno_id, treinoId);
++    return res.status(201).json(sessao);
++  } catch (err) {
++    req.log.error({ err }, 'aluno/iniciarSessaoTreino');
++    return res.status(500).json({ message: 'Erro interno do servidor.' });
++  }
++}
++
++async function concluirSessaoTreino(req, res) {
++  try {
++    const aluno_id = req.user.aluno_id;
++    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
++
++    const { sessaoId } = req.params;
++    const sessao = await alunoModel.concluirSessao(sessaoId, aluno_id, req.body);
++    if (!sessao) return res.status(404).json({ message: 'Sessão não encontrada.' });
++
++    try { await redis.del(chaveProgresso(aluno_id)); } catch (e) {
++      req.log.warn({ err: e }, 'aluno/concluirSessaoTreino: falha ao invalidar cache');
++    }
++    return res.json(sessao);
++  } catch (err) {
++    req.log.error({ err }, 'aluno/concluirSessaoTreino');
++    return res.status(500).json({ message: 'Erro interno do servidor.' });
++  }
++}
++
++async function getProximoTreino(req, res) {
++  try {
++    const aluno_id = req.user.aluno_id;
++    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
++
++    const { rows: protRows } = await pool.query(
++      `SELECT id FROM protocolos WHERE aluno_id = $1 AND ativo = true LIMIT 1`,
++      [aluno_id]
++    );
++    if (!protRows.length) return res.json({ protocolo_id: null, treino: null });
++    const protocoloId = protRows[0].id;
++
++    const treinos = await alunoModel.findTreinos(protocoloId);
++    if (!treinos.length) return res.json({ protocolo_id: protocoloId, treino: null });
++
++    const ultima = await alunoModel.ultimaSessaoConcluida(aluno_id);
++    if (!ultima) {
++      return res.json({ protocolo_id: protocoloId, treino: treinos[0] });
++    }
++    const idx = treinos.findIndex((t) => t.id === ultima.treino_id);
++    const proximo = idx === -1 ? treinos[0] : treinos[(idx + 1) % treinos.length];
++    return res.json({ protocolo_id: protocoloId, treino: proximo });
++  } catch (err) {
++    req.log.error({ err }, 'aluno/getProximoTreino');
++    return res.status(500).json({ message: 'Erro interno do servidor.' });
++  }
++}
++
++async function getProgressoSemanal(req, res) {
++  try {
++    const aluno_id = req.user.aluno_id;
++    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
++
++    const key = chaveProgresso(aluno_id);
++    try {
++      const cached = await redis.get(key);
++      if (cached) return res.json(JSON.parse(cached));
++    } catch (e) {
++      req.log.warn({ err: e }, 'aluno/getProgressoSemanal: falha ao ler cache');
++    }
++
++    // Semana corrente (segunda → domingo)
++    const inicioRes = await pool.query(`SELECT date_trunc('week', NOW())::date AS inicio`);
++    const inicio = inicioRes.rows[0].inicio;
++    const fimRes = await pool.query(`SELECT ($1::date + INTERVAL '6 days')::date AS fim`, [inicio]);
++    const fim = fimRes.rows[0].fim;
++
++    const [protRes, treinosFeitosRes, medidasRes, fotosRes] = await Promise.all([
++      pool.query(
++        `SELECT id FROM protocolos WHERE aluno_id = $1 AND ativo = true LIMIT 1`,
++        [aluno_id]
++      ),
++      pool.query(
++        `SELECT COUNT(*)::int AS feitos
++           FROM treino_sessoes
++          WHERE aluno_id = $1
++            AND concluido_em IS NOT NULL
++            AND concluido_em >= date_trunc('week', NOW())`,
++        [aluno_id]
++      ),
++      pool.query(
++        `SELECT MAX(data_medicao) AS ultima FROM aluno_medidas WHERE aluno_id = $1`,
++        [aluno_id]
++      ),
++      pool.query(
++        `SELECT MAX(data_foto) AS ultima FROM aluno_fotos WHERE aluno_id = $1`,
++        [aluno_id]
++      ),
++    ]);
++
++    let meta = 0;
++    if (protRes.rows[0]) {
++      const { rows } = await pool.query(
++        `SELECT COUNT(*)::int AS total FROM treinos WHERE protocolo_id = $1`,
++        [protRes.rows[0].id]
++      );
++      meta = rows[0]?.total || 0;
++    }
++
++    const feitos = treinosFeitosRes.rows[0]?.feitos || 0;
++    const pctTreinos = meta > 0 ? Math.min(100, Math.round((feitos / meta) * 100)) : 0;
++
++    const diasDesde = (d) => {
++      if (!d) return null;
++      const ms = Date.now() - new Date(d).getTime();
++      return Math.max(0, Math.floor(ms / 86400000));
++    };
++    const medidasUltima = medidasRes.rows[0]?.ultima || null;
++    const fotosUltima = fotosRes.rows[0]?.ultima || null;
++    const medidasDias = diasDesde(medidasUltima);
++    const fotosDias = diasDesde(fotosUltima);
++    const medidasOk = medidasDias !== null && medidasDias < 14;
++    const fotosOk = fotosDias !== null && fotosDias < 14;
++
++    const score = Math.round(
++      0.6 * pctTreinos +
++      0.2 * (medidasOk ? 100 : 0) +
++      0.2 * (fotosOk ? 100 : 0)
++    );
++
++    const payload = {
++      semana: {
++        inicio: inicio instanceof Date ? inicio.toISOString().slice(0, 10) : String(inicio),
++        fim:    fim instanceof Date    ? fim.toISOString().slice(0, 10)    : String(fim),
++      },
++      treinos: { feitos, meta, percentual: pctTreinos },
++      medidas: {
++        atualizado_em: medidasUltima,
++        dias_desde: medidasDias,
++        ok: medidasOk,
++      },
++      fotos: {
++        ultimo_envio: fotosUltima,
++        dias_desde: fotosDias,
++        ok: fotosOk,
++      },
++      score_geral: score,
++    };
++
++    try { await redis.set(key, JSON.stringify(payload), 'EX', 300); } catch (e) {
++      req.log.warn({ err: e }, 'aluno/getProgressoSemanal: falha ao gravar cache');
++    }
++    return res.json(payload);
++  } catch (err) {
++    req.log.error({ err }, 'aluno/getProgressoSemanal');
+     return res.status(500).json({ message: 'Erro interno do servidor.' });
+   }
+ }
+@@ -251,4 +435,5 @@ module.exports = {
+   getPerfil, getMedidas, getFotos, createFoto, getPagamentos, getFaturas,
+   listProtocolos, getProtocolo, getRefeicoes, getTreinos, getSuplementacao,
+   baixarProtocoloPdf, getEvolucao,
++  iniciarSessaoTreino, concluirSessaoTreino, getProximoTreino, getProgressoSemanal,
+ };
+diff --git a/backend/src/models/index.js b/backend/src/models/index.js
+index 9716ed6..cd488d1 100644
+--- a/backend/src/models/index.js
++++ b/backend/src/models/index.js
+@@ -26,5 +26,6 @@ module.exports = {
+   ...require('./substitutos'),
+   ...require('./treinos'),
+   ...require('./treino_exercicios'),
++  ...require('./treinoSessoes'),
+   ...require('./suplementacao'),
+ };
+diff --git a/backend/src/models/treinoSessoes.js b/backend/src/models/treinoSessoes.js
+new file mode 100644
+index 0000000..c8f2a5a
+--- /dev/null
++++ b/backend/src/models/treinoSessoes.js
+@@ -0,0 +1,56 @@
++const pool = require('../config/db');
++
++async function iniciarSessao(aluno_id, treino_id) {
++  const { rows } = await pool.query(
++    `INSERT INTO treino_sessoes (aluno_id, treino_id)
++     VALUES ($1, $2)
++     RETURNING id, iniciado_em`,
++    [aluno_id, treino_id]
++  );
++  return rows[0];
++}
++
++async function concluirSessao(id, aluno_id, { duracao_seg, exercicios, observacao }) {
++  const { rowCount, rows } = await pool.query(
++    `UPDATE treino_sessoes
++        SET concluido_em = NOW(),
++            duracao_seg  = $3,
++            exercicios   = $4::jsonb,
++            observacao   = $5
++      WHERE id = $1 AND aluno_id = $2
++      RETURNING id, treino_id, iniciado_em, concluido_em, duracao_seg`,
++    [id, aluno_id, duracao_seg ?? null, JSON.stringify(exercicios ?? []), observacao ?? null]
++  );
++  return rowCount ? rows[0] : null;
++}
++
++async function ultimaSessaoConcluida(aluno_id) {
++  const { rows } = await pool.query(
++    `SELECT id, treino_id, concluido_em
++       FROM treino_sessoes
++      WHERE aluno_id = $1 AND concluido_em IS NOT NULL
++      ORDER BY concluido_em DESC
++      LIMIT 1`,
++    [aluno_id]
++  );
++  return rows[0] || null;
++}
++
++async function sessoesNaSemana(aluno_id) {
++  const { rows } = await pool.query(
++    `SELECT COUNT(*)::int AS total
++       FROM treino_sessoes
++      WHERE aluno_id = $1
++        AND concluido_em IS NOT NULL
++        AND concluido_em >= date_trunc('week', NOW())`,
++    [aluno_id]
++  );
++  return rows[0]?.total || 0;
++}
++
++module.exports = {
++  iniciarSessao,
++  concluirSessao,
++  ultimaSessaoConcluida,
++  sessoesNaSemana,
++};
+diff --git a/backend/src/models/treinoSessoes.test.mjs b/backend/src/models/treinoSessoes.test.mjs
+new file mode 100644
+index 0000000..02e4dde
+--- /dev/null
++++ b/backend/src/models/treinoSessoes.test.mjs
+@@ -0,0 +1,98 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
++import { createRequire } from 'node:module';
++
++const require = createRequire(import.meta.url);
++const pool = require('../config/db');
++const model = require('./treinoSessoes');
++
++describe('models/treinoSessoes', () => {
++  let spy;
++
++  beforeEach(() => {
++    spy = vi.spyOn(pool, 'query');
++  });
++
++  afterEach(() => {
++    spy.mockRestore();
++  });
++
++  describe('iniciarSessao', () => {
++    it('insere e retorna id + iniciado_em', async () => {
++      spy.mockResolvedValueOnce({
++        rows: [{ id: 'sess-uuid', iniciado_em: '2026-05-20T10:00:00Z' }],
++      });
++      const out = await model.iniciarSessao('aluno-uuid', 'treino-uuid');
++      expect(out).toEqual({ id: 'sess-uuid', iniciado_em: '2026-05-20T10:00:00Z' });
++      expect(spy).toHaveBeenCalledTimes(1);
++      const [, params] = spy.mock.calls[0];
++      expect(params).toEqual(['aluno-uuid', 'treino-uuid']);
++    });
++  });
++
++  describe('concluirSessao', () => {
++    it('retorna sessão atualizada quando aluno_id confere', async () => {
++      spy.mockResolvedValueOnce({
++        rowCount: 1,
++        rows: [{ id: 'sess-uuid', treino_id: 'treino-uuid', duracao_seg: 1800 }],
++      });
++      const out = await model.concluirSessao('sess-uuid', 'aluno-uuid', {
++        duracao_seg: 1800,
++        exercicios: [{ id: 'ex1', peso: 50 }],
++        observacao: 'tudo certo',
++      });
++      expect(out.id).toBe('sess-uuid');
++      expect(out.duracao_seg).toBe(1800);
++
++      const [sql, params] = spy.mock.calls[0];
++      expect(sql).toContain('UPDATE treino_sessoes');
++      expect(sql).toContain('WHERE id = $1 AND aluno_id = $2');
++      expect(params[0]).toBe('sess-uuid');
++      expect(params[1]).toBe('aluno-uuid');
++      expect(params[2]).toBe(1800);
++      expect(typeof params[3]).toBe('string');
++    });
++
++    it('retorna null quando aluno_id não confere (rowCount=0)', async () => {
++      spy.mockResolvedValueOnce({ rowCount: 0, rows: [] });
++      const out = await model.concluirSessao('sess-uuid', 'aluno-errado', {
++        duracao_seg: 0,
++        exercicios: [],
++        observacao: null,
++      });
++      expect(out).toBeNull();
++    });
++  });
++
++  describe('ultimaSessaoConcluida', () => {
++    it('retorna null quando aluno não tem sessões', async () => {
++      spy.mockResolvedValueOnce({ rows: [] });
++      const out = await model.ultimaSessaoConcluida('aluno-uuid');
++      expect(out).toBeNull();
++    });
++
++    it('retorna a sessão mais recente concluída', async () => {
++      spy.mockResolvedValueOnce({
++        rows: [{ id: 's1', treino_id: 't1', concluido_em: '2026-05-19T12:00:00Z' }],
++      });
++      const out = await model.ultimaSessaoConcluida('aluno-uuid');
++      expect(out.treino_id).toBe('t1');
++      const [sql] = spy.mock.calls[0];
++      expect(sql).toContain('ORDER BY concluido_em DESC');
++      expect(sql).toContain('LIMIT 1');
++    });
++  });
++
++  describe('sessoesNaSemana', () => {
++    it('retorna 0 quando não há linhas', async () => {
++      spy.mockResolvedValueOnce({ rows: [{ total: 0 }] });
++      const out = await model.sessoesNaSemana('aluno-uuid');
++      expect(out).toBe(0);
++    });
++
++    it('retorna count quando há sessões', async () => {
++      spy.mockResolvedValueOnce({ rows: [{ total: 3 }] });
++      const out = await model.sessoesNaSemana('aluno-uuid');
++      expect(out).toBe(3);
++    });
++  });
++});
+diff --git a/backend/src/routes/aluno.js b/backend/src/routes/aluno.js
+index c180454..e556b5f 100644
+--- a/backend/src/routes/aluno.js
++++ b/backend/src/routes/aluno.js
+@@ -1,6 +1,8 @@
+ const router = require('express').Router();
+ const alunoController = require('../controllers/alunoController');
+ const { uploadFotoAluno } = require('../middlewares/upload');
++const { validate } = require('../middlewares/validate');
++const sessoesSchemas = require('../schemas/treinoSessoes');
+ 
+ router.get('/perfil', alunoController.getPerfil);
+ router.get('/evolucao', alunoController.getEvolucao);
+@@ -16,4 +18,9 @@ router.get('/protocolos/:id/refeicoes', alunoController.getRefeicoes);
+ router.get('/protocolos/:id/treinos', alunoController.getTreinos);
+ router.get('/protocolos/:id/suplementacao', alunoController.getSuplementacao);
+ 
++router.post ('/treinos/:treinoId/sessoes',          alunoController.iniciarSessaoTreino);
++router.patch('/treinos/sessoes/:sessaoId/concluir', validate(sessoesSchemas.concluirSessao), alunoController.concluirSessaoTreino);
++router.get  ('/progresso-semanal',                  alunoController.getProgressoSemanal);
++router.get  ('/proximo-treino',                     alunoController.getProximoTreino);
++
+ module.exports = router;
+diff --git a/backend/src/schemas/treinoSessoes.js b/backend/src/schemas/treinoSessoes.js
+new file mode 100644
+index 0000000..d0c99b0
+--- /dev/null
++++ b/backend/src/schemas/treinoSessoes.js
+@@ -0,0 +1,9 @@
++const { z, optionalStr, nonNegativeInt } = require('./_common');
++
++const concluirSessao = z.object({
++  duracao_seg: nonNegativeInt,
++  exercicios: z.array(z.unknown()).default([]),
++  observacao: optionalStr,
++});
++
++module.exports = { concluirSessao };
+diff --git a/docs/schema.sql b/docs/schema.sql
+index 9bf775e..2eaf9e5 100644
+--- a/docs/schema.sql
++++ b/docs/schema.sql
+@@ -466,3 +466,18 @@ ALTER TABLE exercicios
+   ADD COLUMN IF NOT EXISTS video_youtube_url TEXT,
+   ADD COLUMN IF NOT EXISTS video_tipo TEXT
+     CHECK (video_tipo IN ('s3', 'youtube'));
++
++-- M014: histórico de sessões de treino executadas pelo aluno
++CREATE TABLE IF NOT EXISTS treino_sessoes (
++  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++  aluno_id      UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
++  treino_id     UUID NOT NULL REFERENCES treinos(id) ON DELETE CASCADE,
++  iniciado_em   TIMESTAMP NOT NULL DEFAULT NOW(),
++  concluido_em  TIMESTAMP,
++  duracao_seg   INT,
++  exercicios    JSONB NOT NULL DEFAULT '[]'::jsonb,
++  observacao    TEXT,
++  created_at    TIMESTAMP NOT NULL DEFAULT NOW()
++);
++CREATE INDEX IF NOT EXISTS idx_treino_sessoes_aluno_data ON treino_sessoes (aluno_id, concluido_em DESC);
++CREATE INDEX IF NOT EXISTS idx_treino_sessoes_treino    ON treino_sessoes (treino_id);
+diff --git a/frontend/package-lock.json b/frontend/package-lock.json
+index c40d891..889df5b 100644
+--- a/frontend/package-lock.json
++++ b/frontend/package-lock.json
+@@ -11,12 +11,16 @@
+         "@dnd-kit/core": "^6.3.1",
+         "@dnd-kit/sortable": "^10.0.0",
+         "@dnd-kit/utilities": "^3.2.2",
++        "@tanstack/react-query": "^5.100.11",
+         "axios": "^1.6.7",
++        "canvas-confetti": "^1.9.4",
+         "clsx": "^2.1.0",
++        "framer-motion": "^12.39.0",
+         "react": "^18.2.0",
+         "react-dom": "^18.2.0",
+         "react-router-dom": "^6.22.0",
+-        "recharts": "^3.8.1"
++        "recharts": "^3.8.1",
++        "zustand": "^5.0.13"
+       },
+       "devDependencies": {
+         "@vitejs/plugin-react": "^4.2.1",
+@@ -1374,6 +1378,32 @@
+       "integrity": "sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==",
+       "license": "MIT"
+     },
++    "node_modules/@tanstack/query-core": {
++      "version": "5.100.11",
++      "resolved": "https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.100.11.tgz",
++      "integrity": "sha512-lmE0994apShXPj8CUxgx4ch5yUJhE9k/+tVwihBvPOyerACWdBocfFg24t8+0RhtlTd7tEgchDkhlCxNssvDxw==",
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/tannerlinsley"
++      }
++    },
++    "node_modules/@tanstack/react-query": {
++      "version": "5.100.11",
++      "resolved": "https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.100.11.tgz",
++      "integrity": "sha512-J0f9s5x3LE1450nNNfYx+e/n0DMa0uOBdFJUy5r0RvmsXd4nB/n0rbHtHI1vYXhikNFan+wf51p6Tmp4c8ucrg==",
++      "license": "MIT",
++      "dependencies": {
++        "@tanstack/query-core": "5.100.11"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/tannerlinsley"
++      },
++      "peerDependencies": {
++        "react": "^18 || ^19"
++      }
++    },
+     "node_modules/@types/babel__core": {
+       "version": "7.20.5",
+       "resolved": "https://registry.npmjs.org/@types/babel__core/-/babel__core-7.20.5.tgz",
+@@ -2036,6 +2066,16 @@
+       ],
+       "license": "CC-BY-4.0"
+     },
++    "node_modules/canvas-confetti": {
++      "version": "1.9.4",
++      "resolved": "https://registry.npmjs.org/canvas-confetti/-/canvas-confetti-1.9.4.tgz",
++      "integrity": "sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==",
++      "license": "ISC",
++      "funding": {
++        "type": "donate",
++        "url": "https://www.paypal.me/kirilvatev"
++      }
++    },
+     "node_modules/chalk": {
+       "version": "4.1.2",
+       "resolved": "https://registry.npmjs.org/chalk/-/chalk-4.1.2.tgz",
+@@ -3182,6 +3222,33 @@
+         "url": "https://github.com/sponsors/rawify"
+       }
+     },
++    "node_modules/framer-motion": {
++      "version": "12.39.0",
++      "resolved": "https://registry.npmjs.org/framer-motion/-/framer-motion-12.39.0.tgz",
++      "integrity": "sha512-+vnLfzrv0MzjLzNl+nvNvR7jdg3q4cxxjz/YvzfifHl0TREtL00cs1RoMTxs+1PzLiEqZGV6gYsBY0oEAYZ24w==",
++      "license": "MIT",
++      "dependencies": {
++        "motion-dom": "^12.39.0",
++        "motion-utils": "^12.39.0",
++        "tslib": "^2.4.0"
++      },
++      "peerDependencies": {
++        "@emotion/is-prop-valid": "*",
++        "react": "^18.0.0 || ^19.0.0",
++        "react-dom": "^18.0.0 || ^19.0.0"
++      },
++      "peerDependenciesMeta": {
++        "@emotion/is-prop-valid": {
++          "optional": true
++        },
++        "react": {
++          "optional": true
++        },
++        "react-dom": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/fs.realpath": {
+       "version": "1.0.0",
+       "resolved": "https://registry.npmjs.org/fs.realpath/-/fs.realpath-1.0.0.tgz",
+@@ -4295,6 +4362,21 @@
+         "node": "*"
+       }
+     },
++    "node_modules/motion-dom": {
++      "version": "12.39.0",
++      "resolved": "https://registry.npmjs.org/motion-dom/-/motion-dom-12.39.0.tgz",
++      "integrity": "sha512-Xn7aAcGDhco/JZTXOub64UmaYn73C6J1Po7Fk+8EvkJsNGTqfhon6UJY53vJKXW5v5Zl8HrYsVxv6oPXeGoGLQ==",
++      "license": "MIT",
++      "dependencies": {
++        "motion-utils": "^12.39.0"
++      }
++    },
++    "node_modules/motion-utils": {
++      "version": "12.39.0",
++      "resolved": "https://registry.npmjs.org/motion-utils/-/motion-utils-12.39.0.tgz",
++      "integrity": "sha512-8nadJAJjTtqRkmRF36FoJTrywK9nnFmnPwnSMyxaOCU7GDjN9RTMJIxx9De8ErM+vpPhMccr/6fo5WciyQLnMQ==",
++      "license": "MIT"
++    },
+     "node_modules/ms": {
+       "version": "2.1.3",
+       "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+@@ -6233,6 +6315,35 @@
+       "funding": {
+         "url": "https://github.com/sponsors/sindresorhus"
+       }
++    },
++    "node_modules/zustand": {
++      "version": "5.0.13",
++      "resolved": "https://registry.npmjs.org/zustand/-/zustand-5.0.13.tgz",
++      "integrity": "sha512-efI2tVaVQPqtOh114loML/Z80Y4NP3yc+Ff0fYiZJPauNeWZeIp/bRFD7I9bfmCOYBh/PHxlglQ9+wvlwnPikQ==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=12.20.0"
++      },
++      "peerDependencies": {
++        "@types/react": ">=18.0.0",
++        "immer": ">=9.0.6",
++        "react": ">=18.0.0",
++        "use-sync-external-store": ">=1.2.0"
++      },
++      "peerDependenciesMeta": {
++        "@types/react": {
++          "optional": true
++        },
++        "immer": {
++          "optional": true
++        },
++        "react": {
++          "optional": true
++        },
++        "use-sync-external-store": {
++          "optional": true
++        }
++      }
+     }
+   }
+ }
+diff --git a/frontend/package.json b/frontend/package.json
+index f4c68b9..28e36b5 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -16,12 +16,16 @@
+     "@dnd-kit/core": "^6.3.1",
+     "@dnd-kit/sortable": "^10.0.0",
+     "@dnd-kit/utilities": "^3.2.2",
++    "@tanstack/react-query": "^5.100.11",
+     "axios": "^1.6.7",
++    "canvas-confetti": "^1.9.4",
+     "clsx": "^2.1.0",
++    "framer-motion": "^12.39.0",
+     "react": "^18.2.0",
+     "react-dom": "^18.2.0",
+     "react-router-dom": "^6.22.0",
+-    "recharts": "^3.8.1"
++    "recharts": "^3.8.1",
++    "zustand": "^5.0.13"
+   },
+   "devDependencies": {
+     "@vitejs/plugin-react": "^4.2.1",
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index f370126..e8410f2 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -1,16 +1,20 @@
++import { lazy, Suspense } from 'react';
+ import { Routes, Route, Navigate } from 'react-router-dom';
++import { QueryClientProvider } from '@tanstack/react-query';
++import { queryClient } from './lib/queryClient';
+ import PrivateRoute from './components/PrivateRoute';
+ import Navbar from './components/Navbar';
+ import { ToastProvider } from './components/ui/Toast';
+ 
+ import Login from './pages/Login';
+-import Dashboard from './pages/admin/Dashboard';
+-import Alunos from './pages/admin/Alunos';
+-import AlunoDetalhe from './pages/admin/AlunoDetalhe';
+-import Exercicios from './pages/admin/Exercicios';
+-import Alimentos from './pages/admin/Alimentos';
+-import Cardio from './pages/admin/Cardio';
+-import ProtocoloBuilder from './pages/admin/ProtocoloBuilder';
++
++const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
++const Alunos = lazy(() => import('./pages/admin/Alunos'));
++const AlunoDetalhe = lazy(() => import('./pages/admin/AlunoDetalhe'));
++const Exercicios = lazy(() => import('./pages/admin/Exercicios'));
++const Alimentos = lazy(() => import('./pages/admin/Alimentos'));
++const Cardio = lazy(() => import('./pages/admin/Cardio'));
++const ProtocoloBuilder = lazy(() => import('./pages/admin/ProtocoloBuilder'));
+ 
+ import AlunoLayout from './pages/aluno/AlunoLayout';
+ import AlunoHome from './pages/aluno/Home';
+@@ -25,19 +29,21 @@ function AdminShell() {
+     <div className="md:flex min-h-screen bg-surface">
+       <Navbar />
+       <main className="flex-1 min-w-0">
+-        <Routes>
+-          <Route path="dashboard" element={<Dashboard />} />
+-          <Route path="alunos" element={<Alunos />} />
+-          <Route path="alunos/:id" element={<AlunoDetalhe />} />
+-          <Route path="exercicios" element={<Exercicios />} />
+-          <Route path="alimentos" element={<Alimentos />} />
+-          <Route path="cardio" element={<Cardio />} />
+-          <Route
+-            path="alunos/:alunoId/protocolos/:id"
+-            element={<ProtocoloBuilder />}
+-          />
+-          <Route path="*" element={<Navigate to="dashboard" replace />} />
+-        </Routes>
++        <Suspense fallback={<div className="flex items-center justify-center h-64 text-zinc-400 text-sm">Carregando...</div>}>
++          <Routes>
++            <Route path="dashboard" element={<Dashboard />} />
++            <Route path="alunos" element={<Alunos />} />
++            <Route path="alunos/:id" element={<AlunoDetalhe />} />
++            <Route path="exercicios" element={<Exercicios />} />
++            <Route path="alimentos" element={<Alimentos />} />
++            <Route path="cardio" element={<Cardio />} />
++            <Route
++              path="alunos/:alunoId/protocolos/:id"
++              element={<ProtocoloBuilder />}
++            />
++            <Route path="*" element={<Navigate to="dashboard" replace />} />
++          </Routes>
++        </Suspense>
+       </main>
+     </div>
+   );
+@@ -67,27 +73,29 @@ function AlunoShell() {
+ 
+ export default function App() {
+   return (
+-    <ToastProvider>
+-      <Routes>
+-        <Route path="/login" element={<Login />} />
+-        <Route
+-          path="/admin/*"
+-          element={
+-            <PrivateRoute role="admin">
+-              <AdminShell />
+-            </PrivateRoute>
+-          }
+-        />
+-        <Route
+-          path="/aluno/*"
+-          element={
+-            <PrivateRoute role="aluno">
+-              <AlunoShell />
+-            </PrivateRoute>
+-          }
+-        />
+-        <Route path="*" element={<Navigate to="/login" replace />} />
+-      </Routes>
+-    </ToastProvider>
++    <QueryClientProvider client={queryClient}>
++      <ToastProvider>
++        <Routes>
++          <Route path="/login" element={<Login />} />
++          <Route
++            path="/admin/*"
++            element={
++              <PrivateRoute role="admin">
++                <AdminShell />
++              </PrivateRoute>
++            }
++          />
++          <Route
++            path="/aluno/*"
++            element={
++              <PrivateRoute role="aluno">
++                <AlunoShell />
++              </PrivateRoute>
++            }
++          />
++          <Route path="*" element={<Navigate to="/login" replace />} />
++        </Routes>
++      </ToastProvider>
++    </QueryClientProvider>
+   );
+ }
+diff --git a/frontend/src/hooks/aluno/queries.js b/frontend/src/hooks/aluno/queries.js
+new file mode 100644
+index 0000000..aa64a59
+--- /dev/null
++++ b/frontend/src/hooks/aluno/queries.js
+@@ -0,0 +1,69 @@
++import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
++import api from '../../services/api';
++
++export function useProgressoSemanal() {
++  return useQuery({
++    queryKey: ['aluno', 'progresso-semanal'],
++    queryFn: async () => (await api.get('/aluno/progresso-semanal')).data,
++    staleTime: 5 * 60_000,
++  });
++}
++
++export function useProximoTreino() {
++  return useQuery({
++    queryKey: ['aluno', 'proximo-treino'],
++    queryFn: async () => (await api.get('/aluno/proximo-treino')).data,
++    staleTime: 60_000,
++  });
++}
++
++export function useProtocoloAtivo() {
++  return useQuery({
++    queryKey: ['aluno', 'protocolo-ativo'],
++    queryFn: async () => {
++      const { data } = await api.get('/aluno/protocolos');
++      const lista = data || [];
++      return lista.find((p) => p.ativo) || lista[0] || null;
++    },
++    staleTime: 5 * 60_000,
++  });
++}
++
++export function useRefeicoes(protocoloId) {
++  return useQuery({
++    queryKey: ['aluno', 'refeicoes', protocoloId],
++    queryFn: async () => (await api.get(`/aluno/protocolos/${protocoloId}/refeicoes`)).data || [],
++    enabled: !!protocoloId,
++    staleTime: 5 * 60_000,
++  });
++}
++
++export function useTreinos(protocoloId) {
++  return useQuery({
++    queryKey: ['aluno', 'treinos', protocoloId],
++    queryFn: async () => (await api.get(`/aluno/protocolos/${protocoloId}/treinos`)).data || [],
++    enabled: !!protocoloId,
++    staleTime: 5 * 60_000,
++  });
++}
++
++export function usePerfil() {
++  return useQuery({
++    queryKey: ['aluno', 'perfil'],
++    queryFn: async () => (await api.get('/aluno/perfil')).data,
++    staleTime: 5 * 60_000,
++  });
++}
++
++export function useConcluirSessao() {
++  const qc = useQueryClient();
++  return useMutation({
++    mutationFn: async ({ sessaoId, payload }) => {
++      return (await api.patch(`/aluno/treinos/sessoes/${sessaoId}/concluir`, payload)).data;
++    },
++    onSuccess: () => {
++      qc.invalidateQueries({ queryKey: ['aluno', 'progresso-semanal'] });
++      qc.invalidateQueries({ queryKey: ['aluno', 'proximo-treino'] });
++    },
++  });
++}
+diff --git a/frontend/src/lib/queryClient.js b/frontend/src/lib/queryClient.js
+new file mode 100644
+index 0000000..b0f074f
+--- /dev/null
++++ b/frontend/src/lib/queryClient.js
+@@ -0,0 +1,12 @@
++import { QueryClient } from '@tanstack/react-query';
++
++export const queryClient = new QueryClient({
++  defaultOptions: {
++    queries: {
++      staleTime: 60_000,
++      gcTime: 5 * 60_000,
++      retry: 1,
++      refetchOnWindowFocus: false,
++    },
++  },
++});
+diff --git a/frontend/src/pages/aluno/AlunoLayout.jsx b/frontend/src/pages/aluno/AlunoLayout.jsx
+index 66d5402..d369d18 100644
+--- a/frontend/src/pages/aluno/AlunoLayout.jsx
++++ b/frontend/src/pages/aluno/AlunoLayout.jsx
+@@ -1,4 +1,7 @@
++import { useEffect } from 'react';
+ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
++import { useAuth } from '../../context/AuthContext';
++import { migrarLocalStorage } from '../../store/aluno';
+ 
+ const ITENS = [
+   { id: 'home',   label: 'Home',   icone: '🏠', rota: '/aluno/home' },
+@@ -17,8 +20,13 @@ function derivarPaginaAtiva(pathname) {
+ export default function AlunoLayout() {
+   const navigate = useNavigate();
+   const location = useLocation();
++  const { user } = useAuth();
+   const paginaAtiva = derivarPaginaAtiva(location.pathname);
+ 
++  useEffect(() => {
++    if (user?.id) migrarLocalStorage(user.id);
++  }, [user?.id]);
++
+   return (
+     <div className="min-h-screen bg-surface flex flex-col max-w-md mx-auto relative">
+       <div className="flex-1 pb-24">
+diff --git a/frontend/src/pages/aluno/Home.jsx b/frontend/src/pages/aluno/Home.jsx
+index f95b8b7..45cad29 100644
+--- a/frontend/src/pages/aluno/Home.jsx
++++ b/frontend/src/pages/aluno/Home.jsx
+@@ -1,199 +1,189 @@
+-import { useEffect, useState, useMemo } from 'react';
++import { useMemo } from 'react';
+ import { useNavigate } from 'react-router-dom';
+-import api from '../../services/api';
+-import { useAuth } from '../../context/AuthContext';
+-import { useToast, errorMessage } from '../../components/ui/Toast';
++import { motion } from 'framer-motion';
++import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
++import { useToast } from '../../components/ui/Toast';
+ import PageLoader from '../../components/ui/PageLoader';
++import { useAlunoStore } from '../../store/aluno';
++import {
++  usePerfil,
++  useProtocoloAtivo,
++  useRefeicoes,
++  useProgressoSemanal,
++  useProximoTreino,
++} from '../../hooks/aluno/queries';
+ 
+ function primeiroNome(nome) {
+   if (!nome) return 'Aluno';
+   return nome.trim().split(/\s+/)[0];
+ }
+ 
++function saudacao() {
++  const h = new Date().getHours();
++  if (h < 6) return 'Boa madrugada';
++  if (h < 12) return 'Bom dia';
++  if (h < 18) return 'Boa tarde';
++  return 'Boa noite';
++}
++
+ export default function Home() {
+   const navigate = useNavigate();
+   const toast = useToast();
+-  const { user } = useAuth();
+ 
+-  const [perfil, setPerfil] = useState(null);
+-  const [protocolo, setProtocolo] = useState(null);
+-  const [treinos, setTreinos] = useState([]);
+-  const [refeicoes, setRefeicoes] = useState([]);
+-  const [loading, setLoading] = useState(true);
++  const perfilQ = usePerfil();
++  const protocoloQ = useProtocoloAtivo();
++  const refeicoesQ = useRefeicoes(protocoloQ.data?.id);
++  const progressoQ = useProgressoSemanal();
++  const proximoQ = useProximoTreino();
+ 
+   const dataHoje = new Date().toISOString().split('T')[0];
+-  const chaveAgua = user?.id ? `agua_${user.id}_${dataHoje}` : null;
+-
+-  const [aguaIngerida, setAguaIngerida] = useState(() => {
+-    if (typeof window === 'undefined' || !user?.id) return 0;
+-    return Number(localStorage.getItem(`agua_${user.id}_${dataHoje}`) || 0);
+-  });
+-
+-  function salvarAgua(valor) {
+-    setAguaIngerida(valor);
+-    if (chaveAgua) localStorage.setItem(chaveAgua, String(valor));
+-    toast.success(`Água registrada: ${Number(valor).toFixed(1)} L`);
+-  }
+-
+-  useEffect(() => {
+-    let cancelled = false;
+-    (async () => {
+-      try {
+-        const [perfilRes, protocolosRes] = await Promise.all([
+-          api.get('/aluno/perfil'),
+-          api.get('/aluno/protocolos'),
+-        ]);
+-        if (cancelled) return;
+-        setPerfil(perfilRes.data);
+-
+-        const lista = protocolosRes.data || [];
+-        const ativo = lista.find((p) => p.ativo) || lista[0] || null;
+-        setProtocolo(ativo);
+-
+-        if (ativo) {
+-          const [tr, rf] = await Promise.all([
+-            api.get(`/aluno/protocolos/${ativo.id}/treinos`).catch(() => ({ data: [] })),
+-            api.get(`/aluno/protocolos/${ativo.id}/refeicoes`).catch(() => ({ data: [] })),
+-          ]);
+-          if (cancelled) return;
+-          setTreinos(tr.data || []);
+-          setRefeicoes(rf.data || []);
+-        }
+-      } catch (err) {
+-        if (!cancelled) toast.error(errorMessage(err));
+-      } finally {
+-        if (!cancelled) setLoading(false);
+-      }
+-    })();
+-    return () => { cancelled = true; };
+-  }, [toast]);
+-
+-  const totalTreinos = treinos.length;
+-  const treinosFeitos = 0;
+-
+-  const proximoTreino = useMemo(() => treinos[0] || null, [treinos]);
++  const aguaIngerida = useAlunoStore((s) => s.agua[dataHoje] || 0);
++  const registrarAgua = useAlunoStore((s) => s.registrarAgua);
+ 
+   const proximaRefeicao = useMemo(() => {
+-    if (!refeicoes.length) return null;
+-    const ordenadas = [...refeicoes].sort((a, b) => {
++    const lista = refeicoesQ.data || [];
++    if (!lista.length) return null;
++    return [...lista].sort((a, b) => {
+       const ha = a.horario_sugerido || '';
+       const hb = b.horario_sugerido || '';
+       if (ha && hb) return ha.localeCompare(hb);
+       return (a.ordem ?? 0) - (b.ordem ?? 0);
+-    });
+-    return ordenadas[0];
+-  }, [refeicoes]);
++    })[0];
++  }, [refeicoesQ.data]);
+ 
+-  if (loading || !perfil) {
++  if (perfilQ.isLoading || !perfilQ.data) {
+     return <PageLoader mensagem="Carregando..." />;
+   }
+ 
++  const perfil = perfilQ.data;
++  const protocolo = protocoloQ.data;
++  const progresso = progressoQ.data;
++  const proximoTreino = proximoQ.data?.treino || null;
++  const proximoProtocoloId = proximoQ.data?.protocolo_id || protocolo?.id || null;
++
++  const totalTreinos = progresso?.treinos?.meta ?? 0;
++  const treinosFeitos = progresso?.treinos?.feitos ?? 0;
++  const scoreSemana = progresso?.score_geral ?? 0;
++
+   const META_AGUA = Number(protocolo?.meta_agua_litros) || 2.5;
+   const pctAgua = META_AGUA > 0 ? Math.min(100, (aguaIngerida / META_AGUA) * 100) : 0;
+ 
++  function salvarAgua(valor) {
++    registrarAgua(dataHoje, valor);
++    toast.success(`Água registrada: ${Number(valor).toFixed(1)} L`);
++  }
++
+   return (
+     <div className="px-5 pt-8 pb-4">
+-        <p className="text-zinc-400 text-sm">Bem vindo(a),</p>
+-        <h1 className="text-3xl font-black text-white tracking-tight mb-6">
+-          {primeiroNome(perfil.nome)}
+-        </h1>
+-
+-        <div className="bg-surface-card border border-surface-border rounded-2xl p-4 mb-4">
+-          <div className="flex items-center gap-3">
+-            <span className="text-2xl">🏋️</span>
+-            <div className="flex-1">
+-              <p className="text-white font-bold text-sm">Treinos da semana</p>
+-              <div className="mt-2 h-2 bg-surface-elevated rounded-full overflow-hidden">
+-                <div
+-                  className="h-full bg-brand rounded-full transition-all duration-500"
+-                  style={{
+-                    width: totalTreinos > 0 ? `${(treinosFeitos / totalTreinos) * 100}%` : '0%',
+-                  }}
+-                />
+-              </div>
+-              <p className="text-zinc-500 text-xs mt-1">{treinosFeitos}/{totalTreinos}</p>
+-            </div>
+-          </div>
++      <p className="text-zinc-400 text-sm">{saudacao()},</p>
++      <h1 className="text-3xl font-black text-white tracking-tight mb-6">
++        {primeiroNome(perfil.nome)}
++      </h1>
++
++      <motion.div
++        initial={{ opacity: 0, y: 8 }}
++        animate={{ opacity: 1, y: 0 }}
++        transition={{ duration: 0.3 }}
++        className="bg-surface-card border border-surface-border rounded-2xl p-4 mb-4
++          flex items-center gap-4"
++      >
++        <div className="w-20 h-20 shrink-0">
++          <RadialBarChart
++            width={80} height={80}
++            innerRadius="70%" outerRadius="100%"
++            data={[{ name: 'score', value: scoreSemana, fill: '#f97316' }]}
++            startAngle={90} endAngle={-270}
++          >
++            <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
++            <RadialBar background={{ fill: '#262626' }} dataKey="value" cornerRadius={20} />
++          </RadialBarChart>
+         </div>
+-
+-        {proximoTreino && (
+-          <div className="bg-surface-card border border-brand/30 rounded-2xl p-5 mb-4">
+-            <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">
+-              Próximo treino
+-            </p>
+-            <p className="text-brand text-2xl font-black mb-3">{proximoTreino.nome}</p>
+-            <button
+-              onClick={() => navigate(`/aluno/treino/${protocolo.id}/${proximoTreino.id}`)}
+-              className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full
+-                uppercase tracking-wide hover:bg-brand-dark transition-colors"
+-            >
+-              Ir para o treino
+-            </button>
+-          </div>
+-        )}
+-
+-        {proximaRefeicao && (
+-          <div className="bg-surface-card border border-brand/30 rounded-2xl p-5 mb-4">
+-            <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">
+-              Próxima refeição
+-            </p>
+-            <p className="text-brand text-2xl font-black mb-3">{proximaRefeicao.nome}</p>
+-            <button
+-              onClick={() => navigate(`/aluno/dieta/${proximaRefeicao.id}`)}
+-              className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full
+-                uppercase tracking-wide hover:bg-brand-dark transition-colors"
+-            >
+-              Ir para refeição
+-            </button>
+-          </div>
+-        )}
+-
+-        <div className="mt-4">
+-          <div className="flex items-center justify-between mb-3">
+-            <h2 className="text-white text-2xl font-black">Água</h2>
+-            <div className="flex items-center gap-2 border border-brand rounded-full px-3 py-1">
+-              <span className="text-brand text-xs">🎯</span>
+-              <span className="text-white font-bold text-sm">{META_AGUA} L</span>
+-            </div>
+-          </div>
+-          <p className="text-zinc-500 text-xs mb-2">Ingerido</p>
+-
+-          <div className="relative flex items-center gap-3">
+-            <span className="text-2xl">💧</span>
+-            <input
+-              type="range"
+-              min="0"
+-              max={META_AGUA}
+-              step="0.25"
+-              value={aguaIngerida}
+-              onChange={(e) => setAguaIngerida(Number(e.target.value))}
+-              className="flex-1 h-2 appearance-none rounded-full
+-                [&::-webkit-slider-thumb]:appearance-none
+-                [&::-webkit-slider-thumb]:w-5
+-                [&::-webkit-slider-thumb]:h-5
+-                [&::-webkit-slider-thumb]:rounded-full
+-                [&::-webkit-slider-thumb]:bg-brand
+-                [&::-webkit-slider-thumb]:cursor-pointer
+-                [&::-moz-range-thumb]:w-5
+-                [&::-moz-range-thumb]:h-5
+-                [&::-moz-range-thumb]:rounded-full
+-                [&::-moz-range-thumb]:bg-brand
+-                [&::-moz-range-thumb]:border-0
+-                [&::-moz-range-thumb]:cursor-pointer"
+-              style={{
+-                background: `linear-gradient(to right, #f97316 ${pctAgua}%, #161616 ${pctAgua}%)`,
+-              }}
+-            />
+-            <button
+-              onClick={() => salvarAgua(aguaIngerida)}
+-              className="shrink-0 bg-brand text-white text-xs font-black px-3 py-2 rounded-full
+-                hover:bg-brand-dark transition-colors"
+-            >
+-              Salvar
+-            </button>
++        <div className="flex-1 min-w-0">
++          <p className="text-zinc-500 text-xs uppercase tracking-widest mb-1">Score semanal</p>
++          <p className="text-white text-3xl font-black tabular-nums">{scoreSemana}</p>
++          <p className="text-zinc-500 text-xs mt-1">{treinosFeitos}/{totalTreinos} treinos</p>
++        </div>
++      </motion.div>
++
++      {proximoTreino && (
++        <motion.div
++          initial={{ opacity: 0, y: 8 }}
++          animate={{ opacity: 1, y: 0 }}
++          transition={{ duration: 0.3, delay: 0.05 }}
++          className="bg-gradient-to-br from-zinc-900 to-zinc-950
++            border border-brand/30 rounded-2xl p-5 mb-4
++            hover:scale-[1.01] transition-transform"
++        >
++          <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">
++            Próximo treino
++          </p>
++          <p className="text-brand text-2xl font-black mb-3">{proximoTreino.nome}</p>
++          <button
++            onClick={() => navigate(`/aluno/treino/${proximoProtocoloId}/${proximoTreino.id}`)}
++            className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full
++              uppercase tracking-wide hover:bg-brand-dark transition-colors"
++          >
++            Ir para o treino
++          </button>
++        </motion.div>
++      )}
++
++      {proximaRefeicao && (
++        <div className="bg-surface-card border border-brand/30 rounded-2xl p-5 mb-4
++          hover:scale-[1.01] transition-transform">
++          <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">
++            Próxima refeição
++          </p>
++          <p className="text-brand text-2xl font-black mb-3">{proximaRefeicao.nome}</p>
++          <button
++            onClick={() => navigate(`/aluno/dieta/${proximaRefeicao.id}`)}
++            className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full
++              uppercase tracking-wide hover:bg-brand-dark transition-colors"
++          >
++            Ir para refeição
++          </button>
++        </div>
++      )}
++
++      <div className="mt-4">
++        <div className="flex items-center justify-between mb-3">
++          <h2 className="text-white text-2xl font-black">Água</h2>
++          <div className="flex items-center gap-2 border border-brand rounded-full px-3 py-1">
++            <span className="text-brand text-xs">🎯</span>
++            <span className="text-white font-bold text-sm">{META_AGUA} L</span>
+           </div>
+-          <p className="text-zinc-400 text-sm mt-2">{aguaIngerida.toFixed(1)} litros</p>
+         </div>
++        <p className="text-zinc-500 text-xs mb-2">Ingerido</p>
++
++        <div className="relative flex items-center gap-3">
++          <span className="text-2xl">💧</span>
++          <input
++            type="range"
++            min="0"
++            max={META_AGUA}
++            step="0.25"
++            defaultValue={aguaIngerida}
++            onChange={(e) => salvarAgua(Number(e.target.value))}
++            className="flex-1 h-2 appearance-none rounded-full
++              [&::-webkit-slider-thumb]:appearance-none
++              [&::-webkit-slider-thumb]:w-5
++              [&::-webkit-slider-thumb]:h-5
++              [&::-webkit-slider-thumb]:rounded-full
++              [&::-webkit-slider-thumb]:bg-brand
++              [&::-webkit-slider-thumb]:cursor-pointer
++              [&::-moz-range-thumb]:w-5
++              [&::-moz-range-thumb]:h-5
++              [&::-moz-range-thumb]:rounded-full
++              [&::-moz-range-thumb]:bg-brand
++              [&::-moz-range-thumb]:border-0
++              [&::-moz-range-thumb]:cursor-pointer"
++            style={{
++              background: `linear-gradient(to right, #f97316 ${pctAgua}%, #161616 ${pctAgua}%)`,
++            }}
++          />
++        </div>
++        <p className="text-zinc-400 text-sm mt-2">{aguaIngerida.toFixed(1)} litros</p>
++      </div>
+     </div>
+   );
+ }
+diff --git a/frontend/src/pages/aluno/TreinoExecucao.jsx b/frontend/src/pages/aluno/TreinoExecucao.jsx
+index dde298f..b96c6dc 100644
+--- a/frontend/src/pages/aluno/TreinoExecucao.jsx
++++ b/frontend/src/pages/aluno/TreinoExecucao.jsx
+@@ -1,5 +1,6 @@
+ import { useEffect, useState, useMemo } from 'react';
+ import { useNavigate, useParams } from 'react-router-dom';
++import confetti from 'canvas-confetti';
+ import api from '../../services/api';
+ import { useAuth } from '../../context/AuthContext';
+ import { useToast, errorMessage } from '../../components/ui/Toast';
+@@ -31,6 +32,9 @@ export default function TreinoExecucao() {
+   const [timer, setTimer] = useState(0);
+   const [timerAtivo, setTimerAtivo] = useState(false);
+   const [tempoTreino, setTempoTreino] = useState(0);
++  const [sessaoAtiva, setSessaoAtiva] = useState(true);
++  const [sessaoId, setSessaoId] = useState(null);
++  const [sessaoConcluidaEnviada, setSessaoConcluidaEnviada] = useState(false);
+ 
+   const [registro, setRegistro] = useState(() => {
+     try { return JSON.parse(localStorage.getItem(chaveRegistro) || '{}'); }
+@@ -59,6 +63,14 @@ export default function TreinoExecucao() {
+           };
+           localStorage.setItem(`treino_dia_${user.id}_${dataHoje}`, JSON.stringify(dados));
+         }
++
++        if (encontrado) {
++          // Inicia sessão no backend. Erro silencioso — não bloqueia UX local.
++          try {
++            const r = await api.post(`/aluno/treinos/${treinoId}/sessoes`);
++            if (!cancelled && r.data?.id) setSessaoId(r.data.id);
++          } catch { /* offline ou backend indisponível — segue local */ }
++        }
+       } catch (err) {
+         if (!cancelled) toast.error(errorMessage(err));
+       } finally {
+@@ -69,9 +81,10 @@ export default function TreinoExecucao() {
+   }, [protocoloId, treinoId, toast, user, dataHoje]);
+ 
+   useEffect(() => {
++    if (!sessaoAtiva) return;
+     const interval = setInterval(() => setTempoTreino((t) => t + 1), 1000);
+     return () => clearInterval(interval);
+-  }, []);
++  }, [sessaoAtiva]);
+ 
+   useEffect(() => {
+     if (!timerAtivo) return;
+@@ -92,6 +105,32 @@ export default function TreinoExecucao() {
+   const exercicio = exercicios[exercicioAtual] || null;
+   const descansoPadrao = exercicio?.descanso_seg || 60;
+ 
++  const treinoConcluido = useMemo(
++    () => exercicios.length > 0 && concluidos.length >= exercicios.length,
++    [exercicios.length, concluidos.length]
++  );
++
++  useEffect(() => {
++    if (treinoConcluido) setSessaoAtiva(false);
++  }, [treinoConcluido]);
++
++  useEffect(() => {
++    if (!treinoConcluido || sessaoConcluidaEnviada || !sessaoId) return;
++    setSessaoConcluidaEnviada(true);
++    api.patch(`/aluno/treinos/sessoes/${sessaoId}/concluir`, {
++      duracao_seg: tempoTreino,
++      exercicios: Object.entries(registro).map(([id, series]) => ({ id, series })),
++    }).catch(() => { /* silencioso — sessão local segue OK */ });
++  }, [treinoConcluido, sessaoConcluidaEnviada, sessaoId, tempoTreino, registro]);
++
++  useEffect(() => {
++    if (!treinoConcluido) return;
++    try {
++      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
++    } catch { /* canvas pode não estar disponível */ }
++    if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
++  }, [treinoConcluido]);
++
+   function atualizarRegistro(exercicioId, serie, campo, valor) {
+     const novo = {
+       ...registro,
+@@ -126,6 +165,7 @@ export default function TreinoExecucao() {
+     const novos = [...new Set([...concluidos, exercicio.id])];
+     setConcluidos(novos);
+     localStorage.setItem(chaveConcluidos, JSON.stringify(novos));
++    if (navigator.vibrate) navigator.vibrate(80);
+ 
+     if (exercicioAtual < exercicios.length - 1) {
+       const proximoIdx = exercicioAtual + 1;
+@@ -136,6 +176,25 @@ export default function TreinoExecucao() {
+     }
+   }
+ 
++  async function refazerTreino() {
++    localStorage.removeItem(chaveRegistro);
++    localStorage.removeItem(chaveConcluidos);
++    setRegistro({});
++    setConcluidos([]);
++    setTempoTreino(0);
++    setExercicioAtual(0);
++    setSerieAtual(0);
++    setTimer(0);
++    setTimerAtivo(false);
++    setSessaoAtiva(true);
++    setSessaoId(null);
++    setSessaoConcluidaEnviada(false);
++    try {
++      const r = await api.post(`/aluno/treinos/${treinoId}/sessoes`);
++      if (r.data?.id) setSessaoId(r.data.id);
++    } catch { /* segue local */ }
++  }
++
+   async function compartilhar() {
+     const texto = `🏆 Treino concluído!\n${treino.nome} - ${exercicios.length} exercícios em ${formatarTempo(tempoTreino)}\n💪 #CoachSystem`;
+     try {
+@@ -172,9 +231,6 @@ export default function TreinoExecucao() {
+     );
+   }
+ 
+-  const treinoConcluido =
+-    exercicios.length > 0 && concluidos.length >= exercicios.length;
+-
+   if (treinoConcluido) {
+     return (
+       <div className="min-h-screen bg-surface max-w-md mx-auto flex flex-col
+@@ -216,6 +272,14 @@ export default function TreinoExecucao() {
+           📤 Compartilhar conquista
+         </button>
+ 
++        <button
++          onClick={refazerTreino}
++          className="w-full border border-surface-border text-zinc-400 font-bold
++            text-sm py-3 rounded-2xl hover:text-white mb-3"
++        >
++          🔁 Refazer treino
++        </button>
++
+         <button
+           onClick={() => navigate('/aluno/treino')}
+           className="w-full border border-surface-border text-zinc-400 font-bold
+@@ -244,12 +308,23 @@ export default function TreinoExecucao() {
+         >
+           ← Voltar
+         </button>
+-        <p className="text-zinc-400 text-sm">
+-          Tempo do treino:{' '}
+-          <span className="text-white font-bold tabular-nums">
+-            {formatarTempo(tempoTreino)}
+-          </span>
+-        </p>
++        <div className="flex items-center gap-3">
++          <p className="text-zinc-400 text-sm">
++            Tempo:{' '}
++            <span className="text-white font-bold tabular-nums">
++              {formatarTempo(tempoTreino)}
++            </span>
++          </p>
++          <button
++            onClick={() => setSessaoAtiva((s) => !s)}
++            aria-label={sessaoAtiva ? 'Pausar sessão' : 'Retomar sessão'}
++            className="w-8 h-8 rounded-full border border-surface-border
++              flex items-center justify-center text-sm hover:border-brand
++              active:scale-95 transition-all"
++          >
++            {sessaoAtiva ? '⏸' : '▶'}
++          </button>
++        </div>
+       </div>
+ 
+       <div className="px-5 mb-4">
+diff --git a/frontend/src/store/aluno.js b/frontend/src/store/aluno.js
+new file mode 100644
+index 0000000..ff992d6
+--- /dev/null
++++ b/frontend/src/store/aluno.js
+@@ -0,0 +1,54 @@
++import { create } from 'zustand';
++import { persist } from 'zustand/middleware';
++
++export const useAlunoStore = create(persist((set) => ({
++  sessaoAtiva: null,
++  iniciarSessao: (data) => set({ sessaoAtiva: data }),
++  atualizarSessao: (patch) => set((s) =>
++    s.sessaoAtiva ? { sessaoAtiva: { ...s.sessaoAtiva, ...patch } } : {}
++  ),
++  concluirSessao: () => set({ sessaoAtiva: null }),
++
++  agua: {},
++  registrarAgua: (data, litros) => set((s) => ({ agua: { ...s.agua, [data]: litros } })),
++
++  treinoDia: {},
++  marcarTreinoDia: (data, info) => set((s) => ({ treinoDia: { ...s.treinoDia, [data]: info } })),
++  removerTreinoDia: (data) => set((s) => {
++    const novo = { ...s.treinoDia };
++    delete novo[data];
++    return { treinoDia: novo };
++  }),
++
++  migradoV1: false,
++  marcarMigrado: () => set({ migradoV1: true }),
++}), { name: 'aluno-store' }));
++
++export function migrarLocalStorage(userId) {
++  if (!userId || typeof window === 'undefined') return;
++  const state = useAlunoStore.getState();
++  if (state.migradoV1) return;
++
++  try {
++    for (let i = 0; i < localStorage.length; i++) {
++      const key = localStorage.key(i);
++      if (!key) continue;
++
++      const aguaMatch = key.match(new RegExp(`^agua_${userId}_(\\d{4}-\\d{2}-\\d{2})$`));
++      if (aguaMatch) {
++        const litros = Number(localStorage.getItem(key)) || 0;
++        state.registrarAgua(aguaMatch[1], litros);
++        continue;
++      }
++
++      const treinoDiaMatch = key.match(new RegExp(`^treino_dia_${userId}_(\\d{4}-\\d{2}-\\d{2})$`));
++      if (treinoDiaMatch) {
++        try {
++          const info = JSON.parse(localStorage.getItem(key) || 'null');
++          if (info) state.marcarTreinoDia(treinoDiaMatch[1], info);
++        } catch { /* ignora */ }
++      }
++    }
++    state.marcarMigrado();
++  } catch { /* segue sem migrar */ }
++}
+-- 
+2.43.0
+

@@ -8,7 +8,7 @@ async function listExercicios(req, res) {
       grupo_muscular, nivel, busca, ativo: ativo !== 'false',
     }));
   } catch (err) {
-    console.error('[admin/listExercicios]', err);
+    req.log.error({ err }, 'admin/listExercicios');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -24,7 +24,7 @@ async function createExercicio(req, res) {
     }
     return res.status(201).json(await alunoModel.createExercicio(body));
   } catch (err) {
-    console.error('[admin/createExercicio]', err);
+    req.log.error({ err }, 'admin/createExercicio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -35,7 +35,7 @@ async function getExercicio(req, res) {
     if (!ex) return res.status(404).json({ message: 'Exercício não encontrado.' });
     return res.json(ex);
   } catch (err) {
-    console.error('[admin/getExercicio]', err);
+    req.log.error({ err }, 'admin/getExercicio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -53,7 +53,7 @@ async function updateExercicio(req, res) {
     if (!rows) return res.status(404).json({ message: 'Exercício não encontrado.' });
     return res.json({ message: 'Exercício atualizado com sucesso.' });
   } catch (err) {
-    console.error('[admin/updateExercicio]', err);
+    req.log.error({ err }, 'admin/updateExercicio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -76,7 +76,7 @@ async function uploadThumbExercicio(req, res) {
       thumbnail_s3_key: req.file.key,
     });
   } catch (err) {
-    console.error('[admin/uploadThumbExercicio]', err);
+    req.log.error({ err }, 'admin/uploadThumbExercicio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -100,7 +100,7 @@ async function uploadVideoExercicio(req, res) {
       video_tipo: 's3',
     });
   } catch (err) {
-    console.error('[admin/uploadVideoExercicio]', err);
+    req.log.error({ err }, 'admin/uploadVideoExercicio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -111,7 +111,7 @@ async function ativarExercicio(req, res) {
     if (!rows) return res.status(404).json({ message: 'Exercício não encontrado.' });
     return res.json({ message: 'Exercício ativado.' });
   } catch (err) {
-    console.error('[admin/ativarExercicio]', err);
+    req.log.error({ err }, 'admin/ativarExercicio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -122,7 +122,7 @@ async function desativarExercicio(req, res) {
     if (!rows) return res.status(404).json({ message: 'Exercício não encontrado.' });
     return res.json({ message: 'Exercício desativado.' });
   } catch (err) {
-    console.error('[admin/desativarExercicio]', err);
+    req.log.error({ err }, 'admin/desativarExercicio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

@@ -14,7 +14,7 @@ async function listProtocolos(req, res) {
     if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
     return res.json(await alunoModel.findProtocolos(req.params.id));
   } catch (err) {
-    console.error('[admin/listProtocolos]', err);
+    req.log.error({ err }, 'admin/listProtocolos');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -25,7 +25,7 @@ async function createProtocolo(req, res) {
     if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
     return res.status(201).json(await alunoModel.createProtocolo(req.params.id, req.body));
   } catch (err) {
-    console.error('[admin/createProtocolo]', err);
+    req.log.error({ err }, 'admin/createProtocolo');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -36,7 +36,7 @@ async function getProtocolo(req, res) {
     if (!p) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.json(p);
   } catch (err) {
-    console.error('[admin/getProtocolo]', err);
+    req.log.error({ err }, 'admin/getProtocolo');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -47,7 +47,7 @@ async function updateProtocolo(req, res) {
     if (!rows) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.json({ message: 'Protocolo atualizado com sucesso.' });
   } catch (err) {
-    console.error('[admin/updateProtocolo]', err);
+    req.log.error({ err }, 'admin/updateProtocolo');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -58,7 +58,7 @@ async function ativarProtocolo(req, res) {
     if (!rows) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.json({ message: 'Protocolo ativado.' });
   } catch (err) {
-    console.error('[admin/ativarProtocolo]', err);
+    req.log.error({ err }, 'admin/ativarProtocolo');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -69,7 +69,7 @@ async function desativarProtocolo(req, res) {
     if (!rows) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.json({ message: 'Protocolo desativado.' });
   } catch (err) {
-    console.error('[admin/desativarProtocolo]', err);
+    req.log.error({ err }, 'admin/desativarProtocolo');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -80,7 +80,7 @@ async function deleteProtocolo(req, res) {
     if (!rows) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.json({ message: 'Protocolo removido.' });
   } catch (err) {
-    console.error('[admin/deleteProtocolo]', err);
+    req.log.error({ err }, 'admin/deleteProtocolo');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -112,7 +112,7 @@ async function baixarProtocoloPdf(req, res) {
     res.setHeader('Cache-Control', 'no-cache');
     return res.end(pdfBuffer, 'binary');
   } catch (err) {
-    console.error('[admin/baixarProtocoloPdf]', err);
+    req.log.error({ err }, 'admin/baixarProtocoloPdf');
     return res.status(500).json({ message: 'Erro ao gerar o PDF. Tente novamente.' });
   }
 }
@@ -142,7 +142,7 @@ async function enviarProtocoloPdf(req, res) {
         aluno, protocolo, refeicoes, treinos, suplementacao, medidaFisica,
       });
     } catch (err) {
-      console.error('[admin/enviarProtocoloPdf/puppeteer]', err);
+      req.log.error({ err }, 'admin/enviarProtocoloPdf/puppeteer');
       return res.status(500).json({ message: `Falha ao gerar PDF: ${err.message}` });
     }
 
@@ -154,7 +154,7 @@ async function enviarProtocoloPdf(req, res) {
         pdfBuffer,
       });
     } catch (err) {
-      console.error('[admin/enviarProtocoloPdf/resend]', err.message);
+      req.log.error({ err }, 'admin/enviarProtocoloPdf/resend');
       const isConfig = err.message && err.message.includes('não configurad');
       return res.status(500).json({
         message: isConfig ? err.message : 'Erro ao enviar o PDF. Tente novamente.',
@@ -163,7 +163,7 @@ async function enviarProtocoloPdf(req, res) {
 
     return res.json({ message: `Protocolo enviado para ${aluno.email}` });
   } catch (err) {
-    console.error('[admin/enviarProtocoloPdf]', err);
+    req.log.error({ err }, 'admin/enviarProtocoloPdf');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

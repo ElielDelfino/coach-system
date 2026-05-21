@@ -6,7 +6,7 @@ async function listAlimentos(req, res) {
     const { categoria, ativo = 'true', busca } = req.query;
     return res.json(await alunoModel.findAlimentos({ categoria, busca, ativo: ativo !== 'false' }));
   } catch (err) {
-    console.error('[admin/listAlimentos]', err);
+    req.log.error({ err }, 'admin/listAlimentos');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -15,7 +15,7 @@ async function createAlimento(req, res) {
   try {
     return res.status(201).json(await alunoModel.createAlimento(req.body));
   } catch (err) {
-    console.error('[admin/createAlimento]', err);
+    req.log.error({ err }, 'admin/createAlimento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -26,7 +26,7 @@ async function getAlimento(req, res) {
     if (!al) return res.status(404).json({ message: 'Alimento não encontrado.' });
     return res.json(al);
   } catch (err) {
-    console.error('[admin/getAlimento]', err);
+    req.log.error({ err }, 'admin/getAlimento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -37,7 +37,7 @@ async function updateAlimento(req, res) {
     if (!rows) return res.status(404).json({ message: 'Alimento não encontrado.' });
     return res.json({ message: 'Alimento atualizado com sucesso.' });
   } catch (err) {
-    console.error('[admin/updateAlimento]', err);
+    req.log.error({ err }, 'admin/updateAlimento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -60,7 +60,7 @@ async function uploadFotoAlimento(req, res) {
       foto_s3_key: req.file.key,
     });
   } catch (err) {
-    console.error('[admin/uploadFotoAlimento]', err);
+    req.log.error({ err }, 'admin/uploadFotoAlimento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -71,7 +71,7 @@ async function ativarAlimento(req, res) {
     if (!rows) return res.status(404).json({ message: 'Alimento não encontrado.' });
     return res.json({ message: 'Alimento ativado.' });
   } catch (err) {
-    console.error('[admin/ativarAlimento]', err);
+    req.log.error({ err }, 'admin/ativarAlimento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -82,7 +82,7 @@ async function desativarAlimento(req, res) {
     if (!rows) return res.status(404).json({ message: 'Alimento não encontrado.' });
     return res.json({ message: 'Alimento desativado.' });
   } catch (err) {
-    console.error('[admin/desativarAlimento]', err);
+    req.log.error({ err }, 'admin/desativarAlimento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const pool = require('./db');
 const { BOOT_LOCK_KEY } = require('./migrate');
+const logger = require('./logger');
 
 async function seed() {
   const client = await pool.connect();
@@ -14,7 +15,7 @@ async function seed() {
     );
 
     if (rows.length > 0) {
-      console.log('[seed] Admin já existe.');
+      logger.info('seed: admin already exists');
       return;
     }
 
@@ -25,13 +26,13 @@ async function seed() {
       ['admin@coach.com', 'Administrador', senhaHash]
     );
 
-    console.log('[seed] Admin padrão criado.');
+    logger.info('seed: default admin created');
   } finally {
     if (locked) {
       try {
         await client.query('SELECT pg_advisory_unlock($1)', [BOOT_LOCK_KEY]);
       } catch (err) {
-        console.error('[seed] Falha ao liberar advisory lock:', err.message);
+        logger.error({ err }, 'seed: failed to release advisory lock');
       }
     }
     client.release();

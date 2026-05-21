@@ -7,7 +7,7 @@ async function listMedidas(req, res) {
     const medidas = await alunoModel.findMedidas(req.params.id);
     return res.json(medidas);
   } catch (err) {
-    console.error('[admin/listMedidas]', err);
+    req.log.error({ err }, 'admin/listMedidas');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -19,7 +19,7 @@ async function createMedida(req, res) {
     const medida = await alunoModel.createMedida(req.params.id, req.body);
     return res.status(201).json(medida);
   } catch (err) {
-    console.error('[admin/createMedida]', err);
+    req.log.error({ err }, 'admin/createMedida');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -30,7 +30,7 @@ async function getMedida(req, res) {
     if (!medida) return res.status(404).json({ message: 'Medição não encontrada.' });
     return res.json(medida);
   } catch (err) {
-    console.error('[admin/getMedida]', err);
+    req.log.error({ err }, 'admin/getMedida');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -41,7 +41,7 @@ async function updateMedida(req, res) {
     if (!rows) return res.status(404).json({ message: 'Medição não encontrada.' });
     return res.json({ message: 'Medição atualizada.' });
   } catch (err) {
-    console.error('[admin/updateMedida]', err);
+    req.log.error({ err }, 'admin/updateMedida');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -52,7 +52,7 @@ async function deleteMedida(req, res) {
     if (!rows) return res.status(404).json({ message: 'Medição não encontrada.' });
     return res.json({ message: 'Medição removida.' });
   } catch (err) {
-    console.error('[admin/deleteMedida]', err);
+    req.log.error({ err }, 'admin/deleteMedida');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

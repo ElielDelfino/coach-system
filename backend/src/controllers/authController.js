@@ -37,7 +37,7 @@ async function login(req, res) {
     res.cookie('refreshToken', refreshToken, COOKIE_OPTS);
     return res.json({ accessToken, user: { id: user.id, email: user.email, role: user.role } });
   } catch (err) {
-    console.error('[auth/login]', err);
+    req.log.error({ err }, 'auth/login');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -66,7 +66,7 @@ async function refresh(req, res) {
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
     return res.json({ accessToken });
   } catch (err) {
-    console.error('[auth/refresh]', err);
+    req.log.error({ err }, 'auth/refresh');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -83,7 +83,7 @@ async function logout(req, res) {
     res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'Strict' });
     return res.json({ message: 'Sessão encerrada com sucesso.' });
   } catch (err) {
-    console.error('[auth/logout]', err);
+    req.log.error({ err }, 'auth/logout');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

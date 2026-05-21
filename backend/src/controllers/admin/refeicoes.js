@@ -6,7 +6,7 @@ async function listRefeicoes(req, res) {
     if (!p) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.json(await alunoModel.findRefeicoes(req.params.id));
   } catch (err) {
-    console.error('[admin/listRefeicoes]', err);
+    req.log.error({ err }, 'admin/listRefeicoes');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -20,7 +20,7 @@ async function createRefeicao(req, res) {
     if (err.code === '23505') {
       return res.status(400).json({ message: 'Já existe uma refeição com este número neste protocolo.' });
     }
-    console.error('[admin/createRefeicao]', err);
+    req.log.error({ err }, 'admin/createRefeicao');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -35,7 +35,7 @@ async function duplicarRefeicao(req, res) {
     if (err.code === 'CONFLICT') {
       return res.status(400).json({ message: 'Já existe uma refeição com esse número neste protocolo.' });
     }
-    console.error('[admin/duplicarRefeicao]', err);
+    req.log.error({ err }, 'admin/duplicarRefeicao');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -46,7 +46,7 @@ async function updateRefeicao(req, res) {
     if (!rows) return res.status(404).json({ message: 'Refeição não encontrada.' });
     return res.json({ message: 'Refeição atualizada.' });
   } catch (err) {
-    console.error('[admin/updateRefeicao]', err);
+    req.log.error({ err }, 'admin/updateRefeicao');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -57,7 +57,7 @@ async function deleteRefeicao(req, res) {
     if (!rows) return res.status(404).json({ message: 'Refeição não encontrada.' });
     return res.json({ message: 'Refeição removida.' });
   } catch (err) {
-    console.error('[admin/deleteRefeicao]', err);
+    req.log.error({ err }, 'admin/deleteRefeicao');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -72,7 +72,7 @@ async function createRefeicaoItem(req, res) {
   } catch (err) {
     if (err.code === 'NOT_FOUND') return res.status(404).json({ message: 'Alimento não encontrado.' });
     if (err.code === '23503') return res.status(404).json({ message: 'Refeição ou alimento não encontrado.' });
-    console.error('[admin/createRefeicaoItem]', err);
+    req.log.error({ err }, 'admin/createRefeicaoItem');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -83,7 +83,7 @@ async function updateRefeicaoItem(req, res) {
     if (!rows) return res.status(404).json({ message: 'Item não encontrado.' });
     return res.json({ message: 'Item atualizado.' });
   } catch (err) {
-    console.error('[admin/updateRefeicaoItem]', err);
+    req.log.error({ err }, 'admin/updateRefeicaoItem');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -94,7 +94,7 @@ async function deleteRefeicaoItem(req, res) {
     if (!rows) return res.status(404).json({ message: 'Item não encontrado.' });
     return res.json({ message: 'Item removido.' });
   } catch (err) {
-    console.error('[admin/deleteRefeicaoItem]', err);
+    req.log.error({ err }, 'admin/deleteRefeicaoItem');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -104,7 +104,7 @@ async function reordenarItens(req, res) {
     await alunoModel.reordenarItens(req.params.refeicaoId, req.body.ordem);
     return res.json({ message: 'Itens reordenados.' });
   } catch (err) {
-    console.error('[admin/reordenarItens]', err);
+    req.log.error({ err }, 'admin/reordenarItens');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -117,7 +117,7 @@ async function createSubstituto(req, res) {
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ message: 'Substituto já cadastrado para este item.' });
     if (err.code === '23503') return res.status(404).json({ message: 'Item ou alimento não encontrado.' });
-    console.error('[admin/createSubstituto]', err);
+    req.log.error({ err }, 'admin/createSubstituto');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -128,7 +128,7 @@ async function deleteSubstituto(req, res) {
     if (!rows) return res.status(404).json({ message: 'Substituto não encontrado.' });
     return res.json({ message: 'Substituto removido.' });
   } catch (err) {
-    console.error('[admin/deleteSubstituto]', err);
+    req.log.error({ err }, 'admin/deleteSubstituto');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
