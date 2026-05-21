@@ -518,10 +518,72 @@ async function listarCheckinsRefeicaoDia(req, res) {
   }
 }
 
+async function getStreak(req, res) {
+  try {
+    const aluno_id = req.user.aluno_id;
+    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+    const streak = await alunoModel.calcularStreak(aluno_id);
+    return res.json(streak);
+  } catch (err) {
+    req.log.error({ err }, 'aluno/getStreak');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function getAtividadeDiaria(req, res) {
+  try {
+    const aluno_id = req.user.aluno_id;
+    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+    const dias = Math.min(Math.max(parseInt(req.query?.dias, 10) || 84, 7), 365);
+    const atividade = await alunoModel.atividadeDiaria(aluno_id, dias);
+    return res.json({ dias, atividade });
+  } catch (err) {
+    req.log.error({ err }, 'aluno/getAtividadeDiaria');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+function semanaInicio(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const diaSemana = d.getDay();
+  const diff = diaSemana === 0 ? -6 : 1 - diaSemana; // segunda-feira como início
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+async function enviarFeedbackSemanal(req, res) {
+  try {
+    const aluno_id = req.user.aluno_id;
+    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+
+    const semana = semanaInicio();
+    const feedback = await alunoModel.upsertFeedback(aluno_id, semana, req.body);
+    return res.status(201).json(feedback);
+  } catch (err) {
+    req.log.error({ err }, 'aluno/enviarFeedbackSemanal');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function listarMeusFeedbacks(req, res) {
+  try {
+    const aluno_id = req.user.aluno_id;
+    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+    const limit = Math.min(Math.max(parseInt(req.query?.limit, 10) || 10, 1), 100);
+    const feedbacks = await alunoModel.listarFeedbacksAluno(aluno_id, limit);
+    return res.json(feedbacks);
+  } catch (err) {
+    req.log.error({ err }, 'aluno/listarMeusFeedbacks');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 module.exports = {
   getPerfil, getMedidas, getFotos, createFoto, getPagamentos, getFaturas,
   listProtocolos, getProtocolo, getRefeicoes, getTreinos, getSuplementacao,
   baixarProtocoloPdf, getEvolucao,
   iniciarSessaoTreino, concluirSessaoTreino, getProximoTreino, getProgressoSemanal,
   registrarCheckinRefeicao, removerCheckinRefeicao, listarCheckinsRefeicaoDia,
+  getStreak, getAtividadeDiaria, enviarFeedbackSemanal, listarMeusFeedbacks,
 };

@@ -1,16 +1,18 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { RadialBarChart, RadialBar, PolarAngleAxis } from 'recharts';
 import { useToast } from '../../components/ui/Toast';
 import PageLoader from '../../components/ui/PageLoader';
 import { useAlunoStore } from '../../store/aluno';
+import StreakCard from '../../components/aluno/StreakCard';
+import ScoreLegenda from '../../components/aluno/ScoreLegenda';
 import {
   usePerfil,
   useProtocoloAtivo,
   useRefeicoes,
   useProgressoSemanal,
   useProximoTreino,
+  useStreak,
 } from '../../hooks/aluno/queries';
 
 function primeiroNome(nome) {
@@ -35,6 +37,7 @@ export default function Home() {
   const refeicoesQ = useRefeicoes(protocoloQ.data?.id);
   const progressoQ = useProgressoSemanal();
   const proximoQ = useProximoTreino();
+  const streakQ = useStreak();
 
   const dataHoje = new Date().toISOString().split('T')[0];
   const aguaIngerida = useAlunoStore((s) => s.agua[dataHoje] || 0);
@@ -61,10 +64,6 @@ export default function Home() {
   const proximoTreino = proximoQ.data?.treino || null;
   const proximoProtocoloId = proximoQ.data?.protocolo_id || protocolo?.id || null;
 
-  const totalTreinos = progresso?.treinos?.meta ?? 0;
-  const treinosFeitos = progresso?.treinos?.feitos ?? 0;
-  const scoreSemana = progresso?.score_geral ?? 0;
-
   const META_AGUA = Number(protocolo?.meta_agua_litros) || 2.5;
   const pctAgua = META_AGUA > 0 ? Math.min(100, (aguaIngerida / META_AGUA) * 100) : 0;
 
@@ -80,30 +79,10 @@ export default function Home() {
         {primeiroNome(perfil.nome)}
       </h1>
 
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="bg-surface-card border border-surface-border rounded-2xl p-4 mb-4
-          flex items-center gap-4"
-      >
-        <div className="w-20 h-20 shrink-0">
-          <RadialBarChart
-            width={80} height={80}
-            innerRadius="70%" outerRadius="100%"
-            data={[{ name: 'score', value: scoreSemana, fill: '#f97316' }]}
-            startAngle={90} endAngle={-270}
-          >
-            <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-            <RadialBar background={{ fill: '#262626' }} dataKey="value" cornerRadius={20} />
-          </RadialBarChart>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-zinc-500 text-xs uppercase tracking-widest mb-1">Score semanal</p>
-          <p className="text-white text-3xl font-black tabular-nums">{scoreSemana}</p>
-          <p className="text-zinc-500 text-xs mt-1">{treinosFeitos}/{totalTreinos} treinos</p>
-        </div>
-      </motion.div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <StreakCard streak={streakQ.data} />
+        <ScoreLegenda progresso={progresso} />
+      </div>
 
       {proximoTreino && (
         <motion.div

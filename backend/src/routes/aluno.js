@@ -4,6 +4,7 @@ const { uploadFotoAluno } = require('../middlewares/upload');
 const { validate } = require('../middlewares/validate');
 const sessoesSchemas = require('../schemas/treinoSessoes');
 const checkinSchemas = require('../schemas/refeicaoCheckins');
+const feedbackSchemas = require('../schemas/alunoFeedbacks');
 
 router.get('/perfil', alunoController.getPerfil);
 router.get('/evolucao', alunoController.getEvolucao);
@@ -27,5 +28,10 @@ router.get  ('/proximo-treino',                     alunoController.getProximoTr
 router.get   ('/refeicoes/checkins',               validate(checkinSchemas.checkinQuery, 'query'), alunoController.listarCheckinsRefeicaoDia);
 router.post  ('/refeicoes/:refeicaoId/checkin',    validate(checkinSchemas.checkinBody),          alunoController.registrarCheckinRefeicao);
 router.delete('/refeicoes/:refeicaoId/checkin',    validate(checkinSchemas.checkinQuery, 'query'), alunoController.removerCheckinRefeicao);
+
+router.get   ('/streak',                            alunoController.getStreak);
+router.get   ('/atividade-diaria',                  alunoController.getAtividadeDiaria);
+router.get   ('/feedbacks',                         alunoController.listarMeusFeedbacks);
+router.post  ('/feedbacks',                         validate(feedbackSchemas.criarFeedback), alunoController.enviarFeedbackSemanal);
 
 module.exports = router;

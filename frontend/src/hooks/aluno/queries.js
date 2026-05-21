@@ -80,6 +80,40 @@ export function useCheckinsDia(data) {
   });
 }
 
+export function useStreak() {
+  return useQuery({
+    queryKey: ['aluno', 'streak'],
+    queryFn: async () => (await api.get('/aluno/streak')).data,
+    staleTime: 60_000,
+  });
+}
+
+export function useAtividadeDiaria(dias = 84) {
+  return useQuery({
+    queryKey: ['aluno', 'atividade-diaria', dias],
+    queryFn: async () => (await api.get('/aluno/atividade-diaria', { params: { dias } })).data,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useFeedbacks(limit = 10) {
+  return useQuery({
+    queryKey: ['aluno', 'feedbacks', limit],
+    queryFn: async () => (await api.get('/aluno/feedbacks', { params: { limit } })).data,
+    staleTime: 60_000,
+  });
+}
+
+export function useEnviarFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload) => (await api.post('/aluno/feedbacks', payload)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['aluno', 'feedbacks'] });
+    },
+  });
+}
+
 export function useToggleCheckin(data) {
   const qc = useQueryClient();
   return useMutation({

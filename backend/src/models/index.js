@@ -28,5 +28,7 @@ module.exports = {
   ...require('./treino_exercicios'),
   ...require('./treinoSessoes'),
   ...require('./refeicaoCheckins'),
+  ...require('./atividade'),
+  ...require('./alunoFeedbacks'),
   ...require('./suplementacao'),
 };
