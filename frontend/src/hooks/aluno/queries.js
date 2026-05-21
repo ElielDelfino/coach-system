@@ -67,3 +67,48 @@ export function useConcluirSessao() {
     },
   });
 }
+
+export function useCheckinsDia(data) {
+  return useQuery({
+    queryKey: ['aluno', 'refeicoes-checkins', data],
+    queryFn: async () => {
+      const res = await api.get('/aluno/refeicoes/checkins', { params: { data } });
+      return res.data?.refeicao_ids || [];
+    },
+    enabled: !!data,
+    staleTime: 30_000,
+  });
+}
+
+export function useToggleCheckin(data) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ refeicaoId, ativo }) => {
+      if (ativo) {
+        await api.delete(`/aluno/refeicoes/${refeicaoId}/checkin`, { params: { data } });
+      } else {
+        await api.post(`/aluno/refeicoes/${refeicaoId}/checkin`, { data });
+      }
+      return { refeicaoId, novoEstado: !ativo };
+    },
+    onMutate: async ({ refeicaoId, ativo }) => {
+      const key = ['aluno', 'refeicoes-checkins', data];
+      await qc.cancelQueries({ queryKey: key });
+      const anterior = qc.getQueryData(key) || [];
+      const otimista = ativo
+        ? anterior.filter((id) => id !== refeicaoId)
+        : [...anterior, refeicaoId];
+      qc.setQueryData(key, otimista);
+      return { anterior };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.anterior !== undefined) {
+        qc.setQueryData(['aluno', 'refeicoes-checkins', data], ctx.anterior);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['aluno', 'refeicoes-checkins', data] });
+      qc.invalidateQueries({ queryKey: ['aluno', 'progresso-semanal'] });
+    },
+  });
+}

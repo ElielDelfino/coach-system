@@ -349,7 +349,7 @@ async function getProgressoSemanal(req, res) {
     const fimRes = await pool.query(`SELECT ($1::date + INTERVAL '6 days')::date AS fim`, [inicio]);
     const fim = fimRes.rows[0].fim;
 
-    const [protRes, treinosFeitosRes, medidasRes, fotosRes] = await Promise.all([
+    const [protRes, treinosFeitosRes, medidasRes, fotosRes, refeicoesCheckinRes] = await Promise.all([
       pool.query(
         `SELECT id FROM protocolos WHERE aluno_id = $1 AND ativo = true LIMIT 1`,
         [aluno_id]
@@ -370,19 +370,36 @@ async function getProgressoSemanal(req, res) {
         `SELECT MAX(data_foto) AS ultima FROM aluno_fotos WHERE aluno_id = $1`,
         [aluno_id]
       ),
+      pool.query(
+        `SELECT COUNT(*)::int AS feitos
+           FROM refeicao_checkins
+          WHERE aluno_id = $1
+            AND data >= date_trunc('week', NOW())::date`,
+        [aluno_id]
+      ),
     ]);
 
     let meta = 0;
+    let metaRefeicoes = 0;
     if (protRes.rows[0]) {
       const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM treinos WHERE protocolo_id = $1`,
+        `SELECT
+           (SELECT COUNT(*)::int FROM treinos   WHERE protocolo_id = $1) AS total_treinos,
+           (SELECT COUNT(*)::int FROM refeicoes WHERE protocolo_id = $1) AS total_refeicoes`,
         [protRes.rows[0].id]
       );
-      meta = rows[0]?.total || 0;
+      meta = rows[0]?.total_treinos || 0;
+      metaRefeicoes = rows[0]?.total_refeicoes || 0;
     }
 
     const feitos = treinosFeitosRes.rows[0]?.feitos || 0;
     const pctTreinos = meta > 0 ? Math.min(100, Math.round((feitos / meta) * 100)) : 0;
+
+    const refeicoesFeitas = refeicoesCheckinRes.rows[0]?.feitos || 0;
+    const metaRefeicoesSemana = metaRefeicoes * 7;
+    const pctRefeicoes = metaRefeicoesSemana > 0
+      ? Math.min(100, Math.round((refeicoesFeitas / metaRefeicoesSemana) * 100))
+      : 0;
 
     const diasDesde = (d) => {
       if (!d) return null;
@@ -397,9 +414,10 @@ async function getProgressoSemanal(req, res) {
     const fotosOk = fotosDias !== null && fotosDias < 14;
 
     const score = Math.round(
-      0.6 * pctTreinos +
-      0.2 * (medidasOk ? 100 : 0) +
-      0.2 * (fotosOk ? 100 : 0)
+      0.45 * pctTreinos +
+      0.30 * pctRefeicoes +
+      0.125 * (medidasOk ? 100 : 0) +
+      0.125 * (fotosOk ? 100 : 0)
     );
 
     const payload = {
@@ -408,6 +426,11 @@ async function getProgressoSemanal(req, res) {
         fim:    fim instanceof Date    ? fim.toISOString().slice(0, 10)    : String(fim),
       },
       treinos: { feitos, meta, percentual: pctTreinos },
+      refeicoes: {
+        feitas: refeicoesFeitas,
+        meta_semanal: metaRefeicoesSemana,
+        percentual: pctRefeicoes,
+      },
       medidas: {
         atualizado_em: medidasUltima,
         dias_desde: medidasDias,
@@ -431,9 +454,74 @@ async function getProgressoSemanal(req, res) {
   }
 }
 
+async function registrarCheckinRefeicao(req, res) {
+  try {
+    const aluno_id = req.user.aluno_id;
+    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+
+    const { refeicaoId } = req.params;
+    const data = req.body?.data || new Date().toISOString().slice(0, 10);
+
+    // Garante que a refeição pertence a um protocolo do aluno
+    const { rows } = await pool.query(
+      `SELECT r.id
+         FROM refeicoes r
+         JOIN protocolos p ON p.id = r.protocolo_id
+        WHERE r.id = $1 AND p.aluno_id = $2`,
+      [refeicaoId, aluno_id]
+    );
+    if (!rows.length) return res.status(404).json({ message: 'Refeição não encontrada.' });
+
+    const checkin = await alunoModel.registrarCheckinRefeicao(aluno_id, refeicaoId, data);
+    try { await redis.del(chaveProgresso(aluno_id)); } catch (e) {
+      req.log.warn({ err: e }, 'aluno/registrarCheckinRefeicao: falha ao invalidar cache');
+    }
+    return res.status(201).json(checkin);
+  } catch (err) {
+    req.log.error({ err }, 'aluno/registrarCheckinRefeicao');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function removerCheckinRefeicao(req, res) {
+  try {
+    const aluno_id = req.user.aluno_id;
+    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+
+    const { refeicaoId } = req.params;
+    const data = req.query?.data || new Date().toISOString().slice(0, 10);
+
+    const removido = await alunoModel.removerCheckinRefeicao(aluno_id, refeicaoId, data);
+    if (!removido) return res.status(404).json({ message: 'Check-in não encontrado.' });
+
+    try { await redis.del(chaveProgresso(aluno_id)); } catch (e) {
+      req.log.warn({ err: e }, 'aluno/removerCheckinRefeicao: falha ao invalidar cache');
+    }
+    return res.status(204).end();
+  } catch (err) {
+    req.log.error({ err }, 'aluno/removerCheckinRefeicao');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function listarCheckinsRefeicaoDia(req, res) {
+  try {
+    const aluno_id = req.user.aluno_id;
+    if (!aluno_id) return res.status(403).json({ message: 'Acesso negado.' });
+
+    const data = req.query?.data || new Date().toISOString().slice(0, 10);
+    const ids = await alunoModel.listarCheckinsDia(aluno_id, data);
+    return res.json({ data, refeicao_ids: ids });
+  } catch (err) {
+    req.log.error({ err }, 'aluno/listarCheckinsRefeicaoDia');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 module.exports = {
   getPerfil, getMedidas, getFotos, createFoto, getPagamentos, getFaturas,
   listProtocolos, getProtocolo, getRefeicoes, getTreinos, getSuplementacao,
   baixarProtocoloPdf, getEvolucao,
   iniciarSessaoTreino, concluirSessaoTreino, getProximoTreino, getProgressoSemanal,
+  registrarCheckinRefeicao, removerCheckinRefeicao, listarCheckinsRefeicaoDia,
 };

@@ -27,5 +27,6 @@ module.exports = {
   ...require('./treinos'),
   ...require('./treino_exercicios'),
   ...require('./treinoSessoes'),
+  ...require('./refeicaoCheckins'),
   ...require('./suplementacao'),
 };

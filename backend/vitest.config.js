@@ -4,6 +4,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['src/**/*.test.{js,cjs}', 'src/**/*.spec.{js,cjs}'],
+    include: ['src/**/*.test.{js,cjs,mjs}', 'src/**/*.spec.{js,cjs,mjs}'],
   },
 });

@@ -153,6 +153,19 @@ async function migrate() {
       await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_aluno_data ON treino_sessoes (aluno_id, concluido_em DESC)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_treino    ON treino_sessoes (treino_id)`);
 
+      // M015: check-ins diários de refeição (engajamento + métrica de aderência)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS refeicao_checkins (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          aluno_id    UUID NOT NULL REFERENCES alunos(id)    ON DELETE CASCADE,
+          refeicao_id UUID NOT NULL REFERENCES refeicoes(id) ON DELETE CASCADE,
+          data        DATE NOT NULL DEFAULT CURRENT_DATE,
+          created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+          UNIQUE (aluno_id, refeicao_id, data)
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_refeicao_checkins_aluno_data ON refeicao_checkins (aluno_id, data DESC)`);
+
       logger.info('migrate: incremental migrations applied');
     }
 
