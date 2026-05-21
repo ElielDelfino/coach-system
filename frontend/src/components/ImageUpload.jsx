@@ -21,8 +21,8 @@ function ImageUpload({ label, onUpload, preview, accept = 'image/*', maxMB = 15 
 
   return (
     <div
-      className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors
-        ${dragging ? 'border-brand bg-brand/5' : 'border-surface-border hover:border-zinc-600'}`}
+      className={`relative border-2 border-dashed rounded-xl text-center cursor-pointer transition-colors overflow-hidden
+        ${dragging ? 'border-brand bg-brand/5' : preview ? 'border-brand/40' : 'border-surface-border hover:border-zinc-600'}`}
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
@@ -36,14 +36,23 @@ function ImageUpload({ label, onUpload, preview, accept = 'image/*', maxMB = 15 
         onChange={(e) => handleFile(e.target.files[0])}
       />
       {loading ? (
-        <p className="text-zinc-400 text-sm">Enviando...</p>
+        <div className="aspect-[3/4] w-full flex items-center justify-center">
+          <p className="text-zinc-400 text-sm">Enviando...</p>
+        </div>
       ) : preview ? (
-        <img src={preview} alt="preview" className="w-full max-h-48 object-cover rounded-lg" />
+        <div className="relative aspect-[3/4] w-full">
+          <img src={preview} alt="preview" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+          <span className="absolute bottom-1.5 left-1.5 text-[10px] uppercase tracking-widest font-black
+            bg-brand text-white px-2 py-0.5 rounded-full">
+            Trocar
+          </span>
+        </div>
       ) : (
-        <div>
-          <p className="text-zinc-400 text-sm font-medium">{label}</p>
-          <p className="text-zinc-600 text-xs mt-1">Arraste ou clique para selecionar</p>
-          <p className="text-zinc-700 text-xs mt-0.5">Máx. {maxMB}MB</p>
+        <div className="aspect-[3/4] w-full flex flex-col items-center justify-center p-3">
+          <div className="text-2xl mb-1.5 text-zinc-600">+</div>
+          <p className="text-zinc-400 text-xs font-bold leading-tight">{label}</p>
+          <p className="text-zinc-700 text-[10px] mt-1.5">Máx. {maxMB}MB</p>
         </div>
       )}
     </div>

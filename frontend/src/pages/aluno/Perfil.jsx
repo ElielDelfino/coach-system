@@ -400,8 +400,8 @@ function TabMedidas({ medidas, evolucao, loading }) {
           </div>
         </div>
 
-        <Card className="p-5">
-          <div style={{ height: 280 }}>
+        <Card className="p-3 md:p-5 [&_.recharts-legend-wrapper]:!hidden md:[&_.recharts-legend-wrapper]:!block">
+          <div style={{ height: 240 }} className="md:h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               {metrica === 'peso' ? (
                 <ComposedChart data={serie} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
@@ -444,7 +444,15 @@ function TabMedidas({ medidas, evolucao, loading }) {
       </section>
 
       <section>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Mobile: pills verticais */}
+        <div className="md:hidden space-y-2">
+          <ProgressoPillMobile icone="⚖️" label="Peso"       valor={ultimaEv.peso_kg}            sufixo="kg" diff={diffPeso}    melhorQuandoMenor />
+          <ProgressoPillMobile icone="📉" label="%BF"        valor={ultimaEv.percentual_gordura} sufixo="%"  diff={diffBF}      melhorQuandoMenor />
+          <ProgressoPillMobile icone="💪" label="P.Magro"    valor={ultimaEv.peso_magro_kg}      sufixo="kg" diff={diffMagro}   melhorQuandoMenor={false} />
+          <ProgressoPillMobile icone="📏" label="Cintura"    valor={ultimaEv.cintura_cm}         sufixo="cm" diff={diffCintura} melhorQuandoMenor />
+        </div>
+        {/* Desktop: grid 4 colunas */}
+        <div className="hidden md:grid md:grid-cols-4 gap-3">
           <ProgressoCard label="Peso"       valor={ultimaEv.peso_kg}            sufixo="kg" diff={diffPeso}    melhorQuandoMenor />
           <ProgressoCard label="%BF"        valor={ultimaEv.percentual_gordura} sufixo="%"  diff={diffBF}      melhorQuandoMenor />
           <ProgressoCard label="Peso magro" valor={ultimaEv.peso_magro_kg}      sufixo="kg" diff={diffMagro}   melhorQuandoMenor={false} />
@@ -454,7 +462,12 @@ function TabMedidas({ medidas, evolucao, loading }) {
 
       <section>
         <div className="text-section-label mb-2">Histórico</div>
-        <Card className="overflow-x-auto">
+        {/* Mobile: cards expansíveis */}
+        <div className="md:hidden">
+          <HistoricoCards ordenadas={ordenadas} />
+        </div>
+        {/* Desktop: tabela completa */}
+        <Card className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-section-label border-b border-surface-border">
@@ -632,15 +645,22 @@ function EnviarFotosModal({ open, onClose, onSent }) {
       </>}
     >
       <div className="space-y-3">
-        <div className="text-xs text-zinc-500">
-          Selecione as fotos antes de confirmar. Não é obrigatório enviar todas — envie as que tiver hoje.
+        <div className="sticky top-0 -mx-5 -mt-4 px-5 py-2 bg-surface-card/95 backdrop-blur z-10
+          flex items-center justify-between border-b border-surface-border">
+          <p className="text-xs text-zinc-500">
+            Envie as que tiver hoje — não precisa todas.
+          </p>
+          <span className={`text-xs font-black px-2.5 py-1 rounded-full
+            ${total > 0 ? 'bg-brand text-white' : 'bg-surface-elevated text-zinc-500'}`}>
+            {total}/{POSICOES.length}
+          </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 pt-2">
           {POSICOES.map((pos) => (
             <div key={pos.id} className="space-y-1">
               <div className="text-section-label">{pos.label}</div>
               <ImageUpload
-                label={`Selecione a foto: ${pos.label}`}
+                label={pos.label}
                 accept="image/jpeg,image/png,image/webp"
                 maxMB={15}
                 preview={previews[pos.id]}
@@ -788,6 +808,96 @@ function Info({ label, value, block }) {
     <div className={block ? 'col-span-full' : ''}>
       <div className="text-section-label">{label}</div>
       <div className="text-zinc-200 text-sm mt-0.5 whitespace-pre-wrap">{value || '—'}</div>
+    </div>
+  );
+}
+
+function ProgressoPillMobile({ icone, label, valor, sufixo, diff, melhorQuandoMenor = true }) {
+  const dispValor = valor == null ? '—' : `${Number(valor).toFixed(1)}${sufixo}`;
+  const corClasse = corDiff(diff, melhorQuandoMenor);
+  const sinal = diff != null && diff > 0 ? '+' : '';
+  return (
+    <div className="flex items-center justify-between bg-surface-elevated border border-surface-border
+      rounded-xl px-4 py-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="text-lg shrink-0">{icone}</span>
+        <p className="text-xs text-zinc-500 uppercase tracking-widest">{label}</p>
+      </div>
+      <div className="flex items-baseline gap-2 shrink-0">
+        <span className="text-lg font-black text-white tabular-nums">{dispValor}</span>
+        {diff != null && (
+          <span className={`text-xs font-bold ${corClasse} tabular-nums`}>
+            {sinal}{diff.toFixed(1)}{sufixo}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoricoCards({ ordenadas }) {
+  const [abertos, setAbertos] = useState(() => ({ [ordenadas[0]?.id]: true }));
+
+  function toggle(id) {
+    setAbertos((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  if (!ordenadas.length) return null;
+
+  return (
+    <div className="space-y-2">
+      {ordenadas.map((m, idx) => {
+        const aberto = !!abertos[m.id];
+        const principais = ['peso_kg', 'percentual_gordura', 'cintura_cm'];
+        return (
+          <div
+            key={m.id}
+            className="bg-surface-elevated border border-surface-border rounded-xl overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => toggle(m.id)}
+              className="w-full flex items-center justify-between px-4 py-3"
+            >
+              <div className="text-left">
+                <p className="text-white font-bold text-sm tabular-nums">
+                  {new Date(m.data_medicao).toLocaleDateString('pt-BR')}
+                </p>
+                <p className="text-zinc-500 text-[10px] uppercase tracking-widest">
+                  {idx === 0 ? 'Mais recente' : `${idx + 1}ª medição`}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex gap-3 text-[11px] tabular-nums">
+                  {principais.map((k) => {
+                    const col = COLUNAS_MEDIDAS.find((c) => c.k === k);
+                    if (!col || m[k] == null) return null;
+                    return (
+                      <span key={k} className="text-zinc-300">
+                        <span className="text-zinc-600">{col.label} </span>
+                        {Number(m[k]).toFixed(1)}{col.sufixo}
+                      </span>
+                    );
+                  })}
+                </div>
+                <span className="text-brand text-xs">{aberto ? '↑' : '↓'}</span>
+              </div>
+            </button>
+            {aberto && (
+              <div className="px-4 pb-4 pt-1 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-surface-border">
+                {COLUNAS_MEDIDAS.map((c) => (
+                  <div key={c.k} className="flex items-baseline justify-between">
+                    <span className="text-zinc-500 text-[11px]">{c.label}</span>
+                    <span className="text-zinc-200 text-xs font-bold tabular-nums">
+                      {m[c.k] == null ? <span className="text-zinc-600">—</span> : formatNum(m[c.k], c.sufixo)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
