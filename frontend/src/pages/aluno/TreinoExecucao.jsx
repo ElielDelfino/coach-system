@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import confetti from 'canvas-confetti';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast, errorMessage } from '../../components/ui/Toast';
@@ -31,6 +32,9 @@ export default function TreinoExecucao() {
   const [timer, setTimer] = useState(0);
   const [timerAtivo, setTimerAtivo] = useState(false);
   const [tempoTreino, setTempoTreino] = useState(0);
+  const [sessaoAtiva, setSessaoAtiva] = useState(true);
+  const [sessaoId, setSessaoId] = useState(null);
+  const [sessaoConcluidaEnviada, setSessaoConcluidaEnviada] = useState(false);
 
   const [registro, setRegistro] = useState(() => {
     try { return JSON.parse(localStorage.getItem(chaveRegistro) || '{}'); }
@@ -59,6 +63,14 @@ export default function TreinoExecucao() {
           };
           localStorage.setItem(`treino_dia_${user.id}_${dataHoje}`, JSON.stringify(dados));
         }
+
+        if (encontrado) {
+          // Inicia sessão no backend. Erro silencioso — não bloqueia UX local.
+          try {
+            const r = await api.post(`/aluno/treinos/${treinoId}/sessoes`);
+            if (!cancelled && r.data?.id) setSessaoId(r.data.id);
+          } catch { /* offline ou backend indisponível — segue local */ }
+        }
       } catch (err) {
         if (!cancelled) toast.error(errorMessage(err));
       } finally {
@@ -69,9 +81,10 @@ export default function TreinoExecucao() {
   }, [protocoloId, treinoId, toast, user, dataHoje]);
 
   useEffect(() => {
+    if (!sessaoAtiva) return;
     const interval = setInterval(() => setTempoTreino((t) => t + 1), 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [sessaoAtiva]);
 
   useEffect(() => {
     if (!timerAtivo) return;
@@ -91,6 +104,32 @@ export default function TreinoExecucao() {
   const exercicios = useMemo(() => treino?.exercicios || [], [treino]);
   const exercicio = exercicios[exercicioAtual] || null;
   const descansoPadrao = exercicio?.descanso_seg || 60;
+
+  const treinoConcluido = useMemo(
+    () => exercicios.length > 0 && concluidos.length >= exercicios.length,
+    [exercicios.length, concluidos.length]
+  );
+
+  useEffect(() => {
+    if (treinoConcluido) setSessaoAtiva(false);
+  }, [treinoConcluido]);
+
+  useEffect(() => {
+    if (!treinoConcluido || sessaoConcluidaEnviada || !sessaoId) return;
+    setSessaoConcluidaEnviada(true);
+    api.patch(`/aluno/treinos/sessoes/${sessaoId}/concluir`, {
+      duracao_seg: tempoTreino,
+      exercicios: Object.entries(registro).map(([id, series]) => ({ id, series })),
+    }).catch(() => { /* silencioso — sessão local segue OK */ });
+  }, [treinoConcluido, sessaoConcluidaEnviada, sessaoId, tempoTreino, registro]);
+
+  useEffect(() => {
+    if (!treinoConcluido) return;
+    try {
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+    } catch { /* canvas pode não estar disponível */ }
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+  }, [treinoConcluido]);
 
   function atualizarRegistro(exercicioId, serie, campo, valor) {
     const novo = {
@@ -126,6 +165,7 @@ export default function TreinoExecucao() {
     const novos = [...new Set([...concluidos, exercicio.id])];
     setConcluidos(novos);
     localStorage.setItem(chaveConcluidos, JSON.stringify(novos));
+    if (navigator.vibrate) navigator.vibrate(80);
 
     if (exercicioAtual < exercicios.length - 1) {
       const proximoIdx = exercicioAtual + 1;
@@ -134,6 +174,25 @@ export default function TreinoExecucao() {
       setTimer(exercicios[proximoIdx]?.descanso_seg || 60);
       setTimerAtivo(false);
     }
+  }
+
+  async function refazerTreino() {
+    localStorage.removeItem(chaveRegistro);
+    localStorage.removeItem(chaveConcluidos);
+    setRegistro({});
+    setConcluidos([]);
+    setTempoTreino(0);
+    setExercicioAtual(0);
+    setSerieAtual(0);
+    setTimer(0);
+    setTimerAtivo(false);
+    setSessaoAtiva(true);
+    setSessaoId(null);
+    setSessaoConcluidaEnviada(false);
+    try {
+      const r = await api.post(`/aluno/treinos/${treinoId}/sessoes`);
+      if (r.data?.id) setSessaoId(r.data.id);
+    } catch { /* segue local */ }
   }
 
   async function compartilhar() {
@@ -171,9 +230,6 @@ export default function TreinoExecucao() {
       </div>
     );
   }
-
-  const treinoConcluido =
-    exercicios.length > 0 && concluidos.length >= exercicios.length;
 
   if (treinoConcluido) {
     return (
@@ -217,6 +273,14 @@ export default function TreinoExecucao() {
         </button>
 
         <button
+          onClick={refazerTreino}
+          className="w-full border border-surface-border text-zinc-400 font-bold
+            text-sm py-3 rounded-2xl hover:text-white mb-3"
+        >
+          🔁 Refazer treino
+        </button>
+
+        <button
           onClick={() => navigate('/aluno/treino')}
           className="w-full border border-surface-border text-zinc-400 font-bold
             text-sm py-3 rounded-2xl hover:text-white"
@@ -244,12 +308,23 @@ export default function TreinoExecucao() {
         >
           ← Voltar
         </button>
-        <p className="text-zinc-400 text-sm">
-          Tempo do treino:{' '}
-          <span className="text-white font-bold tabular-nums">
-            {formatarTempo(tempoTreino)}
-          </span>
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-zinc-400 text-sm">
+            Tempo:{' '}
+            <span className="text-white font-bold tabular-nums">
+              {formatarTempo(tempoTreino)}
+            </span>
+          </p>
+          <button
+            onClick={() => setSessaoAtiva((s) => !s)}
+            aria-label={sessaoAtiva ? 'Pausar sessão' : 'Retomar sessão'}
+            className="w-8 h-8 rounded-full border border-surface-border
+              flex items-center justify-center text-sm hover:border-brand
+              active:scale-95 transition-all"
+          >
+            {sessaoAtiva ? '⏸' : '▶'}
+          </button>
+        </div>
       </div>
 
       <div className="px-5 mb-4">

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const pool = require('./db');
+const logger = require('./logger');
 
 // Lock cross-réplicas: garante que apenas uma réplica execute migrações/seed por vez.
 // Compartilhado com seed.js — ambos usam a mesma chave para serializar o boot.
@@ -26,7 +27,7 @@ async function migrate() {
         'utf-8'
       );
       await client.query(sql);
-      console.log('[migrate] Schema aplicado com sucesso.');
+      logger.info('migrate: schema applied');
     } else {
       // Migrações idempotentes — aplica sempre
       await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nome TEXT`);
@@ -135,7 +136,24 @@ async function migrate() {
           ADD COLUMN IF NOT EXISTS finalizado BOOLEAN NOT NULL DEFAULT false
       `);
 
-      console.log('[migrate] Migrações incrementais aplicadas.');
+      // M014: histórico de sessões de treino executadas pelo aluno
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS treino_sessoes (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          aluno_id      UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+          treino_id     UUID NOT NULL REFERENCES treinos(id) ON DELETE CASCADE,
+          iniciado_em   TIMESTAMP NOT NULL DEFAULT NOW(),
+          concluido_em  TIMESTAMP,
+          duracao_seg   INT,
+          exercicios    JSONB NOT NULL DEFAULT '[]'::jsonb,
+          observacao    TEXT,
+          created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_aluno_data ON treino_sessoes (aluno_id, concluido_em DESC)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_treino    ON treino_sessoes (treino_id)`);
+
+      logger.info('migrate: incremental migrations applied');
     }
 
     // Trigger de updated_at para faturas (idempotente)
@@ -157,7 +175,7 @@ async function migrate() {
       try {
         await client.query('SELECT pg_advisory_unlock($1)', [BOOT_LOCK_KEY]);
       } catch (err) {
-        console.error('[migrate] Falha ao liberar advisory lock:', err.message);
+        logger.error({ err }, 'migrate: failed to release advisory lock');
       }
     }
     client.release();
