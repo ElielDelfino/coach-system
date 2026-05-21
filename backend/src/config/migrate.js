@@ -166,6 +166,34 @@ async function migrate() {
       `);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_refeicao_checkins_aluno_data ON refeicao_checkins (aluno_id, data DESC)`);
 
+      // M016: feedback semanal do aluno (auto-relato + medidas + humor) — vai para "caixa de mensagens" do coach
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS aluno_feedbacks (
+          id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          aluno_id           UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+          semana_inicio      DATE NOT NULL,
+          texto              TEXT NOT NULL,
+          peso_kg            NUMERIC(5,2),
+          percentual_gordura NUMERIC(5,2),
+          cintura_cm         NUMERIC(5,1),
+          humor              SMALLINT CHECK (humor       BETWEEN 1 AND 5),
+          energia            SMALLINT CHECK (energia     BETWEEN 1 AND 5),
+          dificuldade        SMALLINT CHECK (dificuldade BETWEEN 1 AND 5),
+          lido_pelo_coach    BOOLEAN NOT NULL DEFAULT false,
+          lido_em            TIMESTAMP,
+          created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+          UNIQUE (aluno_id, semana_inicio)
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_aluno_feedbacks_aluno_semana ON aluno_feedbacks (aluno_id, semana_inicio DESC)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_aluno_feedbacks_nao_lidos    ON aluno_feedbacks (lido_pelo_coach) WHERE lido_pelo_coach = false`);
+      await client.query(`
+        CREATE OR REPLACE TRIGGER trg_aluno_feedbacks_updated_at
+        BEFORE UPDATE ON aluno_feedbacks
+        FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at()
+      `);
+
       logger.info('migrate: incremental migrations applied');
     }
 

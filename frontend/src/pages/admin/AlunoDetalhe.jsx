@@ -13,9 +13,12 @@ import TabMedidas from '../../components/aluno-detalhe/TabMedidas';
 import TabFotos from '../../components/aluno-detalhe/TabFotos';
 import TabFaturas from '../../components/aluno-detalhe/TabFaturas';
 import TabProtocolos from '../../components/aluno-detalhe/TabProtocolos';
+import TabMensagens from '../../components/aluno-detalhe/TabMensagens';
+import { useFeedbacksAluno } from '../../hooks/admin/feedbacks';
 
 const TABS = [
   { id: 'perfil', label: 'Perfil' },
+  { id: 'mensagens', label: 'Mensagens' },
   { id: 'medidas', label: 'Medidas' },
   { id: 'fotos', label: 'Fotos' },
   { id: 'faturas', label: 'Faturas' },
@@ -109,30 +112,48 @@ export default function AlunoDetalhe() {
         </div>
       </header>
 
-      <nav className="border-b border-surface-border -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="flex flex-wrap">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={clsx(
-                'px-4 md:px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px whitespace-nowrap',
-                tab === t.id
-                  ? 'text-white border-b-2 border-brand'
-                  : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-transparent'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
+      <NavTabs tab={tab} setTab={setTab} alunoId={id} />
 
       {tab === 'perfil' && <TabPerfil aluno={aluno} onReload={load} />}
+      {tab === 'mensagens' && <TabMensagens alunoId={id} />}
       {tab === 'medidas' && <TabMedidas alunoId={id} />}
       {tab === 'fotos' && <TabFotos alunoId={id} aluno={aluno} onReload={load} />}
       {tab === 'faturas' && <TabFaturas alunoId={id} alunoTolerancia={aluno.dias_tolerancia ?? 7} onReload={load} />}
       {tab === 'protocolos' && <TabProtocolos alunoId={id} />}
     </div>
+  );
+}
+
+function NavTabs({ tab, setTab, alunoId }) {
+  const { data: feedbacks } = useFeedbacksAluno(alunoId);
+  const naoLidos = (feedbacks || []).filter((f) => !f.lido_pelo_coach).length;
+  return (
+    <nav className="border-b border-surface-border -mx-4 px-4 md:mx-0 md:px-0 mb-4">
+      <div className="flex flex-wrap">
+        {TABS.map((t) => {
+          const ativo = tab === t.id;
+          const badge = t.id === 'mensagens' && naoLidos > 0 ? naoLidos : null;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={clsx(
+                'relative px-4 md:px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors -mb-px whitespace-nowrap inline-flex items-center gap-2',
+                ativo
+                  ? 'text-white border-b-2 border-brand'
+                  : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-transparent'
+              )}
+            >
+              {t.label}
+              {badge && (
+                <span className="bg-brand text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none tabular-nums">
+                  {badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
   );
 }

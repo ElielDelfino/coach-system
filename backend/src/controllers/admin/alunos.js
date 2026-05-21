@@ -106,7 +106,43 @@ async function redefinirSenhaAluno(req, res) {
   }
 }
 
+async function listarFeedbacksAlunoAdmin(req, res) {
+  try {
+    const aluno = await alunoModel.findById(req.params.id);
+    if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
+    const limit = Math.min(Math.max(parseInt(req.query?.limit, 10) || 50, 1), 200);
+    const feedbacks = await alunoModel.listarFeedbacksAdmin(req.params.id, limit);
+    return res.json(feedbacks);
+  } catch (err) {
+    req.log.error({ err }, 'admin/listarFeedbacksAlunoAdmin');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function marcarFeedbackLidoAdmin(req, res) {
+  try {
+    const atualizado = await alunoModel.marcarFeedbackLido(req.params.feedbackId);
+    if (!atualizado) return res.status(404).json({ message: 'Feedback não encontrado.' });
+    return res.json(atualizado);
+  } catch (err) {
+    req.log.error({ err }, 'admin/marcarFeedbackLidoAdmin');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
+async function contarFeedbacksNaoLidosAdmin(req, res) {
+  try {
+    const porAluno = await alunoModel.contarFeedbacksNaoLidos();
+    const total = await alunoModel.contarFeedbacksNaoLidosTotal();
+    return res.json({ total, por_aluno: porAluno });
+  } catch (err) {
+    req.log.error({ err }, 'admin/contarFeedbacksNaoLidosAdmin');
+    return res.status(500).json({ message: 'Erro interno do servidor.' });
+  }
+}
+
 module.exports = {
   listAlunos, createAluno, getAluno, updateAluno,
   ativarAluno, desativarAluno, redefinirSenhaAluno,
+  listarFeedbacksAlunoAdmin, marcarFeedbackLidoAdmin, contarFeedbacksNaoLidosAdmin,
 };
