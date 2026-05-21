@@ -6,7 +6,7 @@ async function listSuplementacao(req, res) {
     if (!p) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.json(await alunoModel.findSuplementacao(req.params.id));
   } catch (err) {
-    console.error('[admin/listSuplementacao]', err);
+    req.log.error({ err }, 'admin/listSuplementacao');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -17,7 +17,7 @@ async function createSuplemento(req, res) {
     if (!p) return res.status(404).json({ message: 'Protocolo não encontrado.' });
     return res.status(201).json(await alunoModel.createSuplemento(req.params.id, req.body));
   } catch (err) {
-    console.error('[admin/createSuplemento]', err);
+    req.log.error({ err }, 'admin/createSuplemento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -28,7 +28,7 @@ async function updateSuplemento(req, res) {
     if (!rows) return res.status(404).json({ message: 'Suplemento não encontrado.' });
     return res.json({ message: 'Suplemento atualizado.' });
   } catch (err) {
-    console.error('[admin/updateSuplemento]', err);
+    req.log.error({ err }, 'admin/updateSuplemento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -39,7 +39,7 @@ async function deleteSuplemento(req, res) {
     if (!rows) return res.status(404).json({ message: 'Suplemento não encontrado.' });
     return res.json({ message: 'Suplemento removido.' });
   } catch (err) {
-    console.error('[admin/deleteSuplemento]', err);
+    req.log.error({ err }, 'admin/deleteSuplemento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

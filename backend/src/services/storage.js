@@ -1,5 +1,6 @@
 const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const s3 = require('../config/s3');
+const logger = require('../config/logger');
 
 async function deletarArquivo(key) {
   if (!key) return;
@@ -9,7 +10,7 @@ async function deletarArquivo(key) {
       Key: key,
     }));
   } catch (err) {
-    console.error('[storage] Erro ao deletar arquivo S3:', err.message);
+    logger.error({ err, key }, 'storage: failed to delete S3 file');
   }
 }
 

@@ -22,7 +22,7 @@ async function dashboardEvolucao(req, res) {
     }));
     return res.json({ evolucao });
   } catch (err) {
-    console.error('[admin/dashboardEvolucao]', err);
+    req.log.error({ err }, 'admin/dashboardEvolucao');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -120,7 +120,7 @@ async function dashboardResumo(req, res) {
       alunos_sem_medicao_30d: Number(semMedicao.rows[0].sem_medicao_30d),
     });
   } catch (err) {
-    console.error('[admin/dashboardResumo]', err);
+    req.log.error({ err }, 'admin/dashboardResumo');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

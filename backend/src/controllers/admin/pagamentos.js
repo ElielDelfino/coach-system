@@ -11,7 +11,7 @@ async function listPagamentos(req, res) {
     });
     return res.json(result);
   } catch (err) {
-    console.error('[admin/listPagamentos]', err);
+    req.log.error({ err }, 'admin/listPagamentos');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -22,7 +22,7 @@ async function listPagamentosAluno(req, res) {
     if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
     return res.json(await alunoModel.findPagamentos(req.params.id));
   } catch (err) {
-    console.error('[admin/listPagamentosAluno]', err);
+    req.log.error({ err }, 'admin/listPagamentosAluno');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -34,7 +34,7 @@ async function createPagamento(req, res) {
     const pag = await alunoModel.createPagamento(req.params.id, req.body, req.user.id);
     return res.status(201).json(pag);
   } catch (err) {
-    console.error('[admin/createPagamento]', err);
+    req.log.error({ err }, 'admin/createPagamento');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

@@ -5,7 +5,7 @@ async function listCardio(req, res) {
     const { tipo, intensidade, ativo = 'true' } = req.query;
     return res.json(await alunoModel.findCardio({ tipo, intensidade, ativo: ativo !== 'false' }));
   } catch (err) {
-    console.error('[admin/listCardio]', err);
+    req.log.error({ err }, 'admin/listCardio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -14,7 +14,7 @@ async function createCardio(req, res) {
   try {
     return res.status(201).json(await alunoModel.createCardio(req.body));
   } catch (err) {
-    console.error('[admin/createCardio]', err);
+    req.log.error({ err }, 'admin/createCardio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -25,7 +25,7 @@ async function getCardio(req, res) {
     if (!c) return res.status(404).json({ message: 'Cardio não encontrado.' });
     return res.json(c);
   } catch (err) {
-    console.error('[admin/getCardio]', err);
+    req.log.error({ err }, 'admin/getCardio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -36,7 +36,7 @@ async function updateCardio(req, res) {
     if (!rows) return res.status(404).json({ message: 'Cardio não encontrado.' });
     return res.json({ message: 'Cardio atualizado com sucesso.' });
   } catch (err) {
-    console.error('[admin/updateCardio]', err);
+    req.log.error({ err }, 'admin/updateCardio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -47,7 +47,7 @@ async function desativarCardio(req, res) {
     if (!rows) return res.status(404).json({ message: 'Cardio não encontrado.' });
     return res.json({ message: 'Cardio desativado.' });
   } catch (err) {
-    console.error('[admin/desativarCardio]', err);
+    req.log.error({ err }, 'admin/desativarCardio');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

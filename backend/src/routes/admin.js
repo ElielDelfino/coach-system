@@ -43,6 +43,11 @@ router.patch ('/alunos/:id/ativar',      alunos.ativarAluno);
 router.patch ('/alunos/:id/desativar',   alunos.desativarAluno);
 router.patch ('/alunos/:id/senha',       validate(alunoSchemas.redefinirSenha), alunos.redefinirSenhaAluno);
 
+// ─── feedbacks dos alunos (caixa de mensagens do coach) ──────────────────────
+router.get   ('/feedbacks/nao-lidos',          alunos.contarFeedbacksNaoLidosAdmin);
+router.get   ('/alunos/:id/feedbacks',         alunos.listarFeedbacksAlunoAdmin);
+router.patch ('/feedbacks/:feedbackId/lido',   alunos.marcarFeedbackLidoAdmin);
+
 // ─── medidas ──────────────────────────────────────────────────────────────────
 router.get   ('/alunos/:id/medidas',                  medidas.listMedidas);
 router.post  ('/alunos/:id/medidas',                  validate(medidaSchemas.createMedida), medidas.createMedida);

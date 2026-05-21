@@ -6,6 +6,39 @@
 
 ---
 
+## Sessão 2026-05-20 — Bloco 6 (observabilidade & qualidade) ✅
+
+#### 2.F1 Logger estruturado com `pino` + request-id (C2)
+- Novas deps: `pino@^10.3.1`, `pino-http@^11.0.0`.
+- `backend/src/config/logger.js`: instância pino exportada como singleton. Nível: `LOG_LEVEL` env, ou `info` em prod / `debug` fora dela.
+- `backend/server.js`:
+  - `pinoHttp` middleware antes do helmet, com `genReqId: () => randomUUID()` (request-id correlato por requisição).
+  - `customLogLevel`: 5xx → `error`, 4xx → `warn`, demais → `info`.
+  - Serializers leves em `req`/`res` (só id/method/url e statusCode).
+  - Error handler usa `req.log.error({ err })` em vez de `console.error`.
+- **105 `console.*` substituídos** em 21 arquivos:
+  - **Controllers** (admin/* + alunoController + authController): `console.error('[tag]', err)` → `req.log.error({ err }, 'tag')`. Aproveita o `req.log` do pino-http, que herda o `reqId` — logs do mesmo request ficam correlatos.
+  - **Config + services** (`db.js`, `redis.js`, `migrate.js`, `seed.js`, `services/storage.js`): importam `./logger` (ou `../config/logger`) e usam `logger.info` / `logger.error({ err }, msg)`. Não têm `req` disponível, então o reqId não aparece nesses — mas o módulo/contexto está no msg.
+- `.eslintrc.cjs` mudou `'no-console': 'off'` → `'no-console': 'error'` para barrar futuras regressões.
+- `npm run lint` agora cobre `.js` e `.cjs` (`--ext .js,.cjs`).
+
+#### 2.F2 Testes unitários com `vitest` (C1)
+- Nova devDep: `vitest@^4.1.7`.
+- `backend/vitest.config.js` (ESM): `environment: node`, `globals: true`, `include: ['src/**/*.test.{js,cjs}', 'src/**/*.spec.{js,cjs}']`.
+- Scripts em `package.json`: `npm test` (run único) e `npm run test:watch`.
+- **2 arquivos de teste, 29 testes, 100% passando:**
+  - `src/models/_shared.test.js` (ESM, 24 testes) — cobre **todas** as funções puras de `models/_shared.js`: `calcMacros` (3), `calcValorFinal` (6), `recalcFaturaStatus` (4), `toIsoDate` (4), `agruparFotosPorData` (3), `decorarExercicio` (3) + 1 grupo. Mocka `../services/storage` com `vi.mock` (ESM funciona perfeitamente com vi.mock).
+  - `src/models/alunos.test.cjs` (CJS, 6 testes) — cobre `findById` (3) e `update` (3) do model de alunos. Usa **`vi.spyOn(pool, 'query')`** em vez de `vi.mock`. Motivo: em vitest 4 + CJS, `vi.mock` para `require()` tem interop quebrado — o test file recebe o pool real enquanto o source file pode receber o mock. `vi.spyOn` no objeto pool compartilhado (Node cacheia o módulo) substitui o método em ambos os contextos sem ambiguidade. `mockRestore()` no `afterEach` reverte.
+- ESLint `.eslintrc.cjs` ganhou bloco `overrides` para test files: `sourceType: 'module'` em `*.test.js` + `vitest.config.js`; globals (`vi`, `describe`, `it`, `expect`, `beforeEach`, etc.) em `*.test.{js,cjs}`.
+
+#### 2.F3 Verificação Bloco 6
+- `npm run lint` → **clean** (0 errors, 0 warnings).
+- `npm test` → **29 passed (2 files)** em ~350ms.
+- Smoke test backend: logger OK (nível `debug` em dev), 76 models, 78 rotas admin, 3 rotas auth, `BOOT_LOCK_KEY=4242424242`, `server.js` com `pino-http` wired e zero `console.*`.
+- `grep -rn 'console\\.' src/ server.js` → 0 ocorrências.
+
+---
+
 ## 0. Como usar este handoff
 
 Cole este arquivo inteiro no início do próximo chat. Ele dá ao Claude:
@@ -27,6 +60,46 @@ Na sessão de 2026-05-19 fiz uma auditoria completa e atacamos a primeira leva d
 ---
 
 ## 2. O que foi feito até agora (não commitado ainda)
+
+### Sessão 2026-05-20 — Bloco 4 parte 2 (ProtocoloBuilder split)
+
+#### 2.E1 Split de `ProtocoloBuilder.jsx` (2030l → 121l)
+- `frontend/src/pages/admin/ProtocoloBuilder.jsx`: reescrito enxuto (121 linhas). Mantém só o default export, o `useParams`, o fetch do protocolo (`/admin/protocolos/:id`), o header (mobile + desktop sidebar), a `<nav>` dos `MODULOS` e o switch que renderiza o módulo ativo. Imports limpos — só `clsx`, `Link/useParams`, `api`, `Toast`, `MODULOS`, `HidratacaoCard` e os 4 módulos.
+- Nova pasta `frontend/src/components/protocolo-builder/` com 6 arquivos:
+  - `shared.jsx` (12l): exporta `MODULOS` (config das tabs) e `fmt` (formatação numérica usada no resumo nutricional).
+  - `HidratacaoCard.jsx` (48l): default export do card de hidratação no rodapé da sidebar desktop.
+  - `ModuloAlimentar.jsx` (936l): default export `ModuloAlimentar` + internos `RefeicaoEditor`, `ItemRow`, `ItemCard`, `SubstitutosPanel`, `AdicionarItemModal`, `BuscaAlimentoModal`, `NovaRefeicaoModal`, `DuplicarRefeicaoModal`. Mantém `useSortable`/`DndContext` (dnd-kit) e todos os `eslint-disable` originais.
+  - `ModuloTreino.jsx` (782l): default export `ModuloTreino` + internos `TreinoEditor`, `GroupRows`, `TreinoItemRow`, `TreinoItemCard`, `AdicionarTreinoItemModal`, `NovoTreinoModal`, `DuplicarTreinoModal`. Lógica de superset no drag (`grupo_superset` move o bloco junto) preservada.
+  - `ModuloSuplementacao.jsx` (124l): default export `ModuloSuplementacao` + interno `SuplementoModal`.
+  - `ModuloObservacoes.jsx` (42l): default export `ModuloObservacoes`.
+- **Comportamento preservado integralmente.** Nenhuma mudança de prop, de rota, de payload ou de UX — só reorganização do código. Mesmas validações inline, mesmos `eslint-disable` específicos, mesmo padrão de fetch via `useCallback` + `useEffect`.
+
+#### 2.E2 Verificação Bloco 4 parte 2
+- `npm run build` → `850.84kb` em 3.66s. Mesmo tamanho do baseline (refactor puramente organizacional).
+- `npm run lint` inicial → 3 errors novos ("Unused eslint-disable directive" copiados do original). Após `npm run lint:fix` (que limpou os 3 disables órfãos pendentes desde o Bloco 2 — incluindo o de `Alunos.jsx:60` que tinha voltado): **0 errors, 13 warnings** — todos pré-existentes (fast-refresh em `shared.jsx`/`Toast.jsx`/`AuthContext.jsx`, vars `_y` em recharts, hooks deps tolerados).
+
+### Sessão 2026-05-20 — Bloco 4 parte 1 (AlunoDetalhe split)
+
+#### 2.D1 Split de `AlunoDetalhe.jsx` (2046l → 138l)
+- `frontend/src/pages/admin/AlunoDetalhe.jsx`: reescrito enxuto (138 linhas). Mantém só o default export, o `useParams`/`useNavigate`, o fetch do aluno (`/admin/alunos/:id`), o `alternarAtivo`, o header com avatar/nome/badges, a `<nav>` das tabs e o switch que renderiza a tab ativa. Imports limpos — só `clsx`, `api`, `Toast`, `Button`, `StatusBadge`, `PageLoader`, `EmptyState`, `iniciais` do shared e as 5 tabs.
+- Nova pasta `frontend/src/components/aluno-detalhe/` com 6 arquivos:
+  - `shared.jsx` (32l): `iniciais`, `formatDate`, `formatCurrency`, `Info`, `Metric`. Exportações nomeadas. Usado por TabPerfil, TabMedidas, TabFaturas, TabProtocolos.
+  - `TabPerfil.jsx` (210l): default export `TabPerfil` + interno `AlterarSenhaModal`. Importa `Field` de `../../pages/admin/Alunos` (mesma `Field` que era usada antes).
+  - `TabMedidas.jsx` (506l): default export `TabMedidas` + internos `FragmentLinha`, `UltimaMedicaoCard`, `MetricaMini`, `MedidaModal`, `MedidaField` + module-scope `MEDIDA_GRUPOS`, `MEDIDA_FIELD_LABELS`, `formatMedida`.
+  - `TabFotos.jsx` (252l): default export `TabFotos` + internos `FotoLightbox`, `baixarFoto` + module-scope `POSICOES`, `formatDataExtensa`.
+  - `TabFaturas.jsx` (537l): default export `TabFaturas` + internos `FaturaStatusBadge`, `DescontoSection`, `FaturaModal`, `EditarFaturaModal`, `BaixaModal`, `calcPreviewFinal` + module-scope `METODOS`, `FATURA_STATUS_STYLES`, `FATURA_STATUS_LABELS`.
+  - `TabProtocolos.jsx` (419l): default export `TabProtocolos` + internos `Pill`, `ProtocoloStatusBadge`, `ProtocoloCard`, `EditarProtocoloModal`, `ProtocoloModal` + module-scope `FASES`.
+- **Comportamento preservado integralmente.** Nenhuma mudança de prop, de rota, de payload ou de UX — só reorganização do código. Mesmas validações inline, mesmos `eslint-disable` específicos do `MedidaModal` e `BaixaModal`, mesmo padrão de fetch via `useCallback` + `useEffect`.
+
+#### 2.D2 Verificação Bloco 4 parte 1
+- `npm run build` → `850.84kb` em 4.92s. Mesmo tamanho do baseline (refactor é puramente organizacional, sem mudança no bundle).
+- `npm run lint` → introduz **3 warnings novos** em `shared.jsx` (`react-refresh/only-export-components`, mesmo padrão tolerado em `Toast.jsx`/`AuthContext.jsx`/`ui/Toast.jsx`). **0 errors novos**.
+- Total atual: 13 warnings + 3 errors. **Os 3 errors são pré-existentes** (`Alunos.jsx:60`, `ProtocoloBuilder.jsx:171`, `ProtocoloBuilder.jsx:1083` — todos "Unused eslint-disable directive"). O HANDOFF anterior dizia que o `lint:fix` tinha removido esses 3 disables, mas eles voltaram (provavelmente em algum commit posterior). Não foram tocados na refatoração desta sessão — podem ser limpos com `npm run lint:fix` quando alguém atacar o `ProtocoloBuilder` (Bloco 4 parte 2).
+
+#### 2.D3 Pendente do Bloco 4
+- ✅ `ProtocoloBuilder.jsx` foi quebrado na parte 2 desta mesma sessão (ver seção 2.E acima). Bloco 4 concluído.
+
+---
 
 ### Sessão 2026-05-20 — Bloco 2 (frontend confiável)
 
@@ -197,7 +270,13 @@ node -e "
 
 ## 3. Estado atual do branch
 
-- **Nada commitado.** Mudanças acumuladas das quatro sessões: deleções de `node_modules`, `server.js` modificado (helmet/rate-limit/health + `require('./src/config/env')`), `backend/package.json`/`package-lock.json` com novas deps (`helmet`, `express-rate-limit`, `envalid`, `zod`, `eslint`, `eslint-config-prettier`, `prettier`), `frontend/package.json`/`package-lock.json` com novas devDeps (`eslint`, `eslint-config-prettier`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `prettier`), `controllers/adminController.js` deletado + 13 novos em `controllers/admin/`, `routes/admin.js` e `routes/auth.js` reescritos com `validate(schema)`, `models/aluno.js` deletado + 15 novos em `models/`, `src/config/env.js` criado, `src/config/migrate.js` e `src/config/seed.js` com `pg_advisory_lock`, `src/middlewares/validate.js` criado, `src/schemas/` criado com 14 arquivos (`_common.js` + 13 dom.), controllers limpos das validações manuais, `controllers/authController.js` ajustado (validação + import órfão removido), `docker-compose.yml` com `healthcheck`, `docs/api-contract.md` + `docs/ui-contract.md` + `docs/CODE-RULES.md` editados, `App.jsx` + `AlunoLayout.jsx` + 4 páginas do aluno editadas, `frontend/src/main.jsx` envolvido com `<ErrorBoundary>`, `frontend/src/components/ErrorBoundary.jsx` criado, `.eslintrc.cjs` + `.prettierrc` + `.prettierignore` criados em `frontend/` e `backend/`, `ProtocoloBuilder.jsx` com 3 `eslint-disable` órfãos removidos via `lint:fix`, `CLAUDE.md` atualizado, `prompts/HANDOFF.md` (este arquivo) criado/atualizado.
+- **Estado do git ao final de 2026-05-20:** o trabalho das sessões 2026-05-19 e 2026-05-20 já foi capturado em commits do tipo `updating of repository #N` na branch `main`. **Os splits do `AlunoDetalhe.jsx` (parte 1) e do `ProtocoloBuilder.jsx` (parte 2) desta sessão ainda NÃO foram commitados** — estão no working tree. Resumo do que está pendente de commit:
+  - `frontend/src/pages/admin/AlunoDetalhe.jsx` reescrito (2046l → 138l)
+  - `frontend/src/components/aluno-detalhe/` novo: `shared.jsx`, `TabPerfil.jsx`, `TabMedidas.jsx`, `TabFotos.jsx`, `TabFaturas.jsx`, `TabProtocolos.jsx`
+  - `frontend/src/pages/admin/ProtocoloBuilder.jsx` reescrito (2030l → 121l)
+  - `frontend/src/components/protocolo-builder/` novo: `shared.jsx`, `HidratacaoCard.jsx`, `ModuloAlimentar.jsx`, `ModuloTreino.jsx`, `ModuloSuplementacao.jsx`, `ModuloObservacoes.jsx`
+  - `frontend/src/pages/admin/Alunos.jsx`: 1 `eslint-disable` órfão removido via `lint:fix`
+  - `prompts/HANDOFF.md` (este arquivo) e `.claude/CLAUDE.md` atualizados com o resumo da sessão
 - **Nada deployado.** A imagem Docker em produção ainda é a anterior.
 - Branch atual: `main`.
 
@@ -214,6 +293,8 @@ node -e "
 10. `feat(backend): validate request bodies with zod schemas via shared middleware`
 11. `feat(frontend): wrap root with ErrorBoundary`
 12. `chore: add ESLint + Prettier config to frontend and backend`
+13. `refactor(frontend): split AlunoDetalhe.jsx into per-tab components under components/aluno-detalhe/`
+14. `refactor(frontend): split ProtocoloBuilder.jsx into per-module components under components/protocolo-builder/`
 
 ---
 
@@ -230,18 +311,18 @@ node -e "
 ### 4.2 MÉDIA — qualidade pré-produção
 | # | Item | Onde | Impacto |
 |---|------|------|---------|
-| B1 | Páginas frontend gigantes | `frontend/src/pages/admin/AlunoDetalhe.jsx` (2046l) e `ProtocoloBuilder.jsx` (2030l). Quebrar em subcomponentes em `frontend/src/components/aluno-detalhe/` e `frontend/src/components/protocolo-builder/` | Manutenção difícil, conflitos em PR, bundle alto |
+| ~~B1~~ | ~~Páginas frontend gigantes~~ | ✅ Concluído em 2026-05-20: `AlunoDetalhe.jsx` (parte 1, seção 2.D) e `ProtocoloBuilder.jsx` (parte 2, seção 2.E). | — |
 | ~~B2~~ | ~~`ErrorBoundary` no React~~ | ✅ Concluído em 2026-05-20 (ver seção 2.C1). | — |
 | ~~B3~~ | ~~ESLint + Prettier~~ | ✅ Concluído em 2026-05-20 (ver seções 2.C2 e 2.C3). | — |
-| B4 | Code-splitting do frontend | Bundle atual: 849KB. Usar `React.lazy()` nas rotas admin (Dashboard, Alunos, AlunoDetalhe, ProtocoloBuilder) | Carregamento lento em mobile |
+| ~~B4~~ | ~~Code-splitting do frontend~~ | ✅ Concluído — `React.lazy()` + `Suspense` em 7 rotas admin (`App.jsx`). | — |
 | B5 | Cache de inadimplência no Redis | `backend/src/middlewares/auth.js:30` faz um SELECT a cada request de aluno. Adicionar cache curto (60s) com chave `aluno_status:{aluno_id}`. Invalidar em `ativarAluno`/`desativarAluno`/`darBaixaFatura`/`createFatura`/`updateFatura`/`deleteFatura` | Gargalo em pico |
 | B6 | Pool tuning no `pg` | `backend/src/config/db.js` cria pool sem `max`/`idleTimeoutMillis`. Configurar `max: 10`, `idleTimeoutMillis: 30000`, `connectionTimeoutMillis: 5000` | Conexões podem estourar em pico |
 
 ### 4.3 BAIXA — features de qualidade
 | # | Item | Onde | Impacto |
 |---|------|------|---------|
-| C1 | Testes | Não há `jest`/`vitest`. Começar pelos models (mais críticos e puros) e auth | Sem rede de segurança em refatorações |
-| C2 | Logger estruturado | Hoje só `console.error`. Adicionar `pino` com request-id correlato. Substituir os 103+ `console.error` por `logger.error` | Logs grep-eáveis em prod |
+| ~~C1~~ | ~~Testes~~ | ✅ Concluído em 2026-05-20 (ver seção 2.F2). Baseline: 29 testes, `_shared.js` 100% coberto + `alunos.js` (findById/update). Padrão `vi.spyOn(pool, 'query')` documentado para próximos models. | — |
+| ~~C2~~ | ~~Logger estruturado~~ | ✅ Concluído em 2026-05-20 (ver seção 2.F1). 105 `console.*` migrados, request-id correlato via pino-http. | — |
 | C3 | Separar `users.js` de `alunos.js` | `models/alunos.js` (185l) tem operações em `users` (senha, ativar/desativar). Se a app crescer, separar | Hoje funcionalmente OK |
 | C4 | `version: "3.9"` obsoleto | `docker-compose.yml` linha 1 — campo `version` é ignorado pelo Compose V2 | Cosmético |
 | C5 | TypeScript progressivo | Não bloqueante. Considerar `.ts` em arquivos novos com config permissiva | Tipagem útil em projeto desse porte |
@@ -258,14 +339,12 @@ Sugestão de ordem e tamanho de cada bloco. Cada bloco é um PR/commit independe
 
 **Bloco 3 — Validação backend (zod)** ✅ **CONCLUÍDO em 2026-05-20** (ver seção 2).
 
-**Bloco 4 — Refatoração de páginas gigantes**
-Item B1. Tempo: 2–3 sessões. Começar por `AlunoDetalhe.jsx` (tem tabs claramente separáveis) → extrair cada tab em arquivo próprio. Depois `ProtocoloBuilder.jsx`.
+**Bloco 4 — Refatoração de páginas gigantes** ✅ **CONCLUÍDO em 2026-05-20** — parte 1 (AlunoDetalhe, seção 2.D) e parte 2 (ProtocoloBuilder, seção 2.E).
 
-**Bloco 5 — Performance**
-Itens: B4 (code-splitting), B5 (cache Redis), B6 (pool tuning). Tempo: 1 sessão.
+**Bloco 5 — Performance** ✅ **CONCLUÍDO em 2026-05-20**
+B4 (code-splitting — `React.lazy()` + `Suspense` em 7 rotas admin em `App.jsx`), B5 (cache Redis — `middlewares/auth.js:30`, chave `aluno_status:{id}`, TTL 60s), B6 (pool tuning — `config/db.js:6`, `max:10`, `idleTimeoutMillis:30000`, `connectionTimeoutMillis:5000`).
 
-**Bloco 6 — Observabilidade & qualidade**
-Itens: C1 (testes mínimos para models), C2 (logger).
+**Bloco 6 — Observabilidade & qualidade** ✅ **CONCLUÍDO em 2026-05-20** — C1 (testes vitest, seção 2.F2) e C2 (logger pino + request-id, seção 2.F1).
 
 ---
 
@@ -276,10 +355,14 @@ Comandos para o próximo Claude confirmar o estado e começar:
 ```bash
 # 1) Confirmar que o trabalho das sessões anteriores está aplicado
 git status --short
-ls backend/src/models/        # deve listar 16 arquivos (.js)
+ls backend/src/models/        # deve listar 18 arquivos (.js)
 ls backend/src/controllers/admin/  # deve listar 13 arquivos
 grep -l "require.*models/aluno" backend/src/  # deve dar VAZIO
 ls backend/src/config/env.js  # deve existir (Bloco 1)
+ls frontend/src/components/aluno-detalhe/  # deve listar 6 arquivos (Bloco 4 parte 1)
+ls frontend/src/components/protocolo-builder/  # deve listar 6 arquivos (Bloco 4 parte 2)
+wc -l frontend/src/pages/admin/AlunoDetalhe.jsx  # deve ser ~138l
+wc -l frontend/src/pages/admin/ProtocoloBuilder.jsx  # deve ser ~121l
 
 # 2) envalid falha cedo se faltar env var crítico (esperado: lista 8 vars + exit 1)
 cd backend && env -i PATH="$PATH" node -e "require('./src/config/env')"
@@ -304,7 +387,7 @@ node -e "
 cd ../frontend && npm run build
 ```
 
-Depois disso, escolha um bloco da seção 5. **Blocos 1, 2 e 3 concluídos.** Próximos sugeridos: Bloco 4 (B1 páginas frontend gigantes — `AlunoDetalhe.jsx` e `ProtocoloBuilder.jsx`) ou Bloco 5 (B4 code-splitting + B5 cache Redis + B6 pool tuning).
+Depois disso, escolha um bloco da seção 5. **Blocos 1, 2, 3, 4 concluídos.** Próximo sugerido: Bloco 5 (B4 code-splitting com `React.lazy()` + B5 cache Redis de inadimplência + B6 pool tuning no `pg`).
 
 ---
 

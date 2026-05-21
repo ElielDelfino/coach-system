@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   LineChart, Line, AreaChart, Area, ComposedChart,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend,
@@ -13,12 +14,17 @@ import Modal from '../../components/ui/Modal';
 import ImageUpload from '../../components/ImageUpload';
 import PageLoader from '../../components/ui/PageLoader';
 import EmptyState from '../../components/ui/EmptyState';
+import Heatmap from '../../components/aluno/Heatmap';
+import FeedbackForm from '../../components/aluno/FeedbackForm';
+import { useAtividadeDiaria } from '../../hooks/aluno/queries';
 
 const TABS = [
-  { id: 'perfil',   label: 'Meu Perfil' },
-  { id: 'medidas',  label: 'Minhas Medidas' },
-  { id: 'fotos',    label: 'Minhas Fotos' },
-  { id: 'faturas',  label: 'Faturas' },
+  { id: 'perfil',     label: 'Perfil',     icone: '👤' },
+  { id: 'feedback',   label: 'Feedback',   icone: '💬' },
+  { id: 'atividade',  label: 'Atividade',  icone: '🔥' },
+  { id: 'medidas',    label: 'Medidas',    icone: '📏' },
+  { id: 'fotos',      label: 'Fotos',      icone: '📷' },
+  { id: 'faturas',    label: 'Faturas',    icone: '💳' },
 ];
 
 function formatDate(d) {
@@ -134,21 +140,29 @@ export default function Perfil() {
         )}
 
         <div className="overflow-x-auto scrollbar-none border-b border-surface-border -mx-4 px-4">
-          <div className="flex min-w-max gap-1">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={
-                  'px-4 py-3 text-xs font-bold uppercase tracking-widest transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ' +
-                  (activeTab === t.id
-                    ? 'text-brand border-brand'
-                    : 'text-zinc-500 border-transparent hover:text-white')
-                }
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="flex min-w-max gap-0.5">
+            {TABS.map((t) => {
+              const ativo = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`relative px-3.5 py-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest
+                    whitespace-nowrap shrink-0 transition-colors -mb-px
+                    ${ativo ? 'text-brand' : 'text-zinc-500 hover:text-white'}`}
+                >
+                  <span className="text-base">{t.icone}</span>
+                  <span>{t.label}</span>
+                  {ativo && (
+                    <motion.div
+                      layoutId="tab-underline-perfil"
+                      className="absolute left-0 right-0 -bottom-px h-0.5 bg-brand rounded-full"
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -159,6 +173,14 @@ export default function Perfil() {
             proximaPendente={proximaPendente}
             onAbrirFotos={() => { setActiveTab('fotos'); }}
           />
+        )}
+
+        {activeTab === 'feedback' && (
+          <FeedbackForm />
+        )}
+
+        {activeTab === 'atividade' && (
+          <TabAtividade />
         )}
 
         {activeTab === 'medidas' && (
@@ -176,59 +198,125 @@ export default function Perfil() {
   );
 }
 
+function TabAtividade() {
+  const { data, isLoading } = useAtividadeDiaria(84);
+  if (isLoading) return <PageLoader mensagem="Carregando atividade..." />;
+  const atividade = data?.atividade || [];
+  const total = atividade.reduce((acc, d) => acc + d.treinos_concluidos + d.refeicoes_feitas, 0);
+  const diasAtivos = atividade.filter((d) => d.treinos_concluidos + d.refeicoes_feitas > 0).length;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-surface-elevated border border-surface-border rounded-2xl px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Dias ativos</p>
+          <p className="text-white text-2xl font-black tabular-nums mt-0.5">{diasAtivos}<span className="text-sm text-zinc-500">/{atividade.length}</span></p>
+        </div>
+        <div className="bg-surface-elevated border border-surface-border rounded-2xl px-4 py-3">
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500">Total atividades</p>
+          <p className="text-white text-2xl font-black tabular-nums mt-0.5">{total}</p>
+        </div>
+      </div>
+
+      <Card className="p-4 md:p-5">
+        <div className="flex items-baseline justify-between mb-4">
+          <h3 className="text-white font-black text-base">Últimas 12 semanas</h3>
+          <span className="text-zinc-500 text-xs">treinos + refeições</span>
+        </div>
+        <Heatmap atividade={atividade} />
+      </Card>
+
+      <p className="text-zinc-500 text-xs leading-relaxed px-1">
+        Cada quadrado representa um dia. A intensidade da cor reflete quantas atividades você
+        completou (1 treino vale como 3 refeições no cálculo de intensidade).
+      </p>
+    </div>
+  );
+}
+
+function iniciaisDoNome(nome) {
+  if (!nome) return '?';
+  const partes = nome.trim().split(/\s+/);
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
 function TabPerfil({ perfil, protocoloAtivo, proximaPendente, onAbrirFotos }) {
   return (
-    <div className="space-y-6">
-      <Card className="p-5">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="min-w-0">
-            <div className="text-section-label">Aluno</div>
-            <h2 className="text-xl font-black text-white tracking-tight mt-1 truncate">{perfil.nome}</h2>
-            <div className="text-zinc-400 text-sm mt-0.5 truncate">{perfil.email}</div>
+    <div className="space-y-5">
+      {/* Header com avatar + KPIs no topo */}
+      <Card className="p-5 md:p-6">
+        <div className="flex items-center gap-4 md:gap-5">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-brand to-orange-700
+            flex items-center justify-center shrink-0 shadow-lg shadow-brand/20">
+            <span className="text-white text-xl md:text-2xl font-black tracking-tight">
+              {iniciaisDoNome(perfil.nome)}
+            </span>
           </div>
-          <StatusBadge status={perfil.status} />
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl md:text-2xl font-black text-white tracking-tight truncate">{perfil.nome}</h2>
+            <p className="text-zinc-400 text-sm truncate">{perfil.email}</p>
+            <div className="mt-2"><StatusBadge status={perfil.status} /></div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mt-5 border-t border-surface-border pt-5">
+        {protocoloAtivo && (
+          <div className="mt-5 pt-5 border-t border-surface-border">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-widest text-zinc-500">Protocolo ativo</p>
+                <p className="text-white font-black text-base mt-0.5 truncate">{protocoloAtivo.nome}</p>
+                {protocoloAtivo.fase && (
+                  <p className="text-zinc-500 text-[11px] uppercase tracking-widest mt-0.5">{protocoloAtivo.fase}</p>
+                )}
+              </div>
+              <span className="text-brand text-xl">⚡</span>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Dados pessoais */}
+      <Card className="p-5 md:p-6">
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-4">Dados pessoais</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Info label="Próximo vencimento" value={formatDate(proximaPendente?.data_vencimento)} />
           <Info label="Telefone" value={perfil.telefone} />
           <Info label="Nascimento" value={formatDate(perfil.data_nascimento)} />
           <Info label="Sexo" value={perfil.sexo === 'M' ? 'Masculino' : perfil.sexo === 'F' ? 'Feminino' : perfil.sexo || '—'} />
         </div>
 
-        <div className="mt-5 space-y-3">
-          {perfil.objetivo   && <Info label="Objetivo"   value={perfil.objetivo}   block />}
-          {perfil.restricoes && <Info label="Restrições" value={perfil.restricoes} block />}
-          {perfil.lesoes     && <Info label="Lesões"     value={perfil.lesoes}     block />}
-        </div>
+        {(perfil.objetivo || perfil.restricoes || perfil.lesoes) && (
+          <div className="mt-5 pt-5 border-t border-surface-border space-y-4">
+            {perfil.objetivo   && <Info label="Objetivo"   value={perfil.objetivo}   block />}
+            {perfil.restricoes && <Info label="Restrições" value={perfil.restricoes} block />}
+            {perfil.lesoes     && <Info label="Lesões"     value={perfil.lesoes}     block />}
+          </div>
+        )}
       </Card>
 
-      {protocoloAtivo && (
-        <Card className="p-5 border-brand/40 bg-brand/5">
-          <div className="text-section-label">Protocolo ativo</div>
-          <h2 className="text-xl font-black text-white mt-1">{protocoloAtivo.nome}</h2>
-          <div className="text-xs text-zinc-400 uppercase tracking-widest">{protocoloAtivo.fase}</div>
-        </Card>
-      )}
-
+      {/* Fotos */}
       <div>
-        <h2 className="text-2xl font-black text-white mb-1">Fotos de atualização</h2>
-        <p className="text-zinc-500 text-sm mb-4">
-          Tire as fotos sempre com o mesmo ângulo e a mesma luz.
-        </p>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-xl md:text-2xl font-black text-white">Fotos de atualização</h2>
+          <span className="text-zinc-600 text-[10px] uppercase tracking-widest hidden md:block">
+            Sempre mesmo ângulo
+          </span>
+        </div>
         {perfil.envio_fotos_liberado ? (
           <button
             onClick={onAbrirFotos}
-            className="w-full flex items-center justify-center gap-4 bg-brand text-white
-              font-black text-base py-4 px-6 rounded-2xl hover:bg-brand-dark transition-colors"
+            className="w-full flex items-center justify-center gap-3 bg-brand text-white
+              font-black text-sm uppercase tracking-widest py-3.5 px-6 rounded-2xl
+              hover:bg-brand-dark transition-colors"
           >
-            <span className="text-2xl">⬆</span>
+            <span className="text-lg">⬆</span>
             Enviar fotos
           </button>
         ) : (
           <div className="w-full bg-surface-elevated border border-surface-border
             rounded-2xl py-4 px-6 text-center">
-            <p className="text-zinc-500 text-sm">Envio de fotos não liberado pelo professor.</p>
+            <p className="text-zinc-500 text-sm">🔒 Envio de fotos não liberado pelo professor.</p>
           </div>
         )}
       </div>
@@ -400,8 +488,8 @@ function TabMedidas({ medidas, evolucao, loading }) {
           </div>
         </div>
 
-        <Card className="p-5">
-          <div style={{ height: 280 }}>
+        <Card className="p-3 md:p-5 [&_.recharts-legend-wrapper]:!hidden md:[&_.recharts-legend-wrapper]:!block">
+          <div style={{ height: 240 }} className="md:h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               {metrica === 'peso' ? (
                 <ComposedChart data={serie} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
@@ -444,7 +532,15 @@ function TabMedidas({ medidas, evolucao, loading }) {
       </section>
 
       <section>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Mobile: pills verticais */}
+        <div className="md:hidden space-y-2">
+          <ProgressoPillMobile icone="⚖️" label="Peso"       valor={ultimaEv.peso_kg}            sufixo="kg" diff={diffPeso}    melhorQuandoMenor />
+          <ProgressoPillMobile icone="📉" label="%BF"        valor={ultimaEv.percentual_gordura} sufixo="%"  diff={diffBF}      melhorQuandoMenor />
+          <ProgressoPillMobile icone="💪" label="P.Magro"    valor={ultimaEv.peso_magro_kg}      sufixo="kg" diff={diffMagro}   melhorQuandoMenor={false} />
+          <ProgressoPillMobile icone="📏" label="Cintura"    valor={ultimaEv.cintura_cm}         sufixo="cm" diff={diffCintura} melhorQuandoMenor />
+        </div>
+        {/* Desktop: grid 4 colunas */}
+        <div className="hidden md:grid md:grid-cols-4 gap-3">
           <ProgressoCard label="Peso"       valor={ultimaEv.peso_kg}            sufixo="kg" diff={diffPeso}    melhorQuandoMenor />
           <ProgressoCard label="%BF"        valor={ultimaEv.percentual_gordura} sufixo="%"  diff={diffBF}      melhorQuandoMenor />
           <ProgressoCard label="Peso magro" valor={ultimaEv.peso_magro_kg}      sufixo="kg" diff={diffMagro}   melhorQuandoMenor={false} />
@@ -454,7 +550,12 @@ function TabMedidas({ medidas, evolucao, loading }) {
 
       <section>
         <div className="text-section-label mb-2">Histórico</div>
-        <Card className="overflow-x-auto">
+        {/* Mobile: cards expansíveis */}
+        <div className="md:hidden">
+          <HistoricoCards ordenadas={ordenadas} />
+        </div>
+        {/* Desktop: tabela completa */}
+        <Card className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-section-label border-b border-surface-border">
@@ -632,15 +733,22 @@ function EnviarFotosModal({ open, onClose, onSent }) {
       </>}
     >
       <div className="space-y-3">
-        <div className="text-xs text-zinc-500">
-          Selecione as fotos antes de confirmar. Não é obrigatório enviar todas — envie as que tiver hoje.
+        <div className="sticky top-0 -mx-5 -mt-4 px-5 py-2 bg-surface-card/95 backdrop-blur z-10
+          flex items-center justify-between border-b border-surface-border">
+          <p className="text-xs text-zinc-500">
+            Envie as que tiver hoje — não precisa todas.
+          </p>
+          <span className={`text-xs font-black px-2.5 py-1 rounded-full
+            ${total > 0 ? 'bg-brand text-white' : 'bg-surface-elevated text-zinc-500'}`}>
+            {total}/{POSICOES.length}
+          </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 pt-2">
           {POSICOES.map((pos) => (
             <div key={pos.id} className="space-y-1">
               <div className="text-section-label">{pos.label}</div>
               <ImageUpload
-                label={`Selecione a foto: ${pos.label}`}
+                label={pos.label}
                 accept="image/jpeg,image/png,image/webp"
                 maxMB={15}
                 preview={previews[pos.id]}
@@ -788,6 +896,96 @@ function Info({ label, value, block }) {
     <div className={block ? 'col-span-full' : ''}>
       <div className="text-section-label">{label}</div>
       <div className="text-zinc-200 text-sm mt-0.5 whitespace-pre-wrap">{value || '—'}</div>
+    </div>
+  );
+}
+
+function ProgressoPillMobile({ icone, label, valor, sufixo, diff, melhorQuandoMenor = true }) {
+  const dispValor = valor == null ? '—' : `${Number(valor).toFixed(1)}${sufixo}`;
+  const corClasse = corDiff(diff, melhorQuandoMenor);
+  const sinal = diff != null && diff > 0 ? '+' : '';
+  return (
+    <div className="flex items-center justify-between bg-surface-elevated border border-surface-border
+      rounded-xl px-4 py-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="text-lg shrink-0">{icone}</span>
+        <p className="text-xs text-zinc-500 uppercase tracking-widest">{label}</p>
+      </div>
+      <div className="flex items-baseline gap-2 shrink-0">
+        <span className="text-lg font-black text-white tabular-nums">{dispValor}</span>
+        {diff != null && (
+          <span className={`text-xs font-bold ${corClasse} tabular-nums`}>
+            {sinal}{diff.toFixed(1)}{sufixo}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistoricoCards({ ordenadas }) {
+  const [abertos, setAbertos] = useState(() => ({ [ordenadas[0]?.id]: true }));
+
+  function toggle(id) {
+    setAbertos((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  if (!ordenadas.length) return null;
+
+  return (
+    <div className="space-y-2">
+      {ordenadas.map((m, idx) => {
+        const aberto = !!abertos[m.id];
+        const principais = ['peso_kg', 'percentual_gordura', 'cintura_cm'];
+        return (
+          <div
+            key={m.id}
+            className="bg-surface-elevated border border-surface-border rounded-xl overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => toggle(m.id)}
+              className="w-full flex items-center justify-between px-4 py-3"
+            >
+              <div className="text-left">
+                <p className="text-white font-bold text-sm tabular-nums">
+                  {new Date(m.data_medicao).toLocaleDateString('pt-BR')}
+                </p>
+                <p className="text-zinc-500 text-[10px] uppercase tracking-widest">
+                  {idx === 0 ? 'Mais recente' : `${idx + 1}ª medição`}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex gap-3 text-[11px] tabular-nums">
+                  {principais.map((k) => {
+                    const col = COLUNAS_MEDIDAS.find((c) => c.k === k);
+                    if (!col || m[k] == null) return null;
+                    return (
+                      <span key={k} className="text-zinc-300">
+                        <span className="text-zinc-600">{col.label} </span>
+                        {Number(m[k]).toFixed(1)}{col.sufixo}
+                      </span>
+                    );
+                  })}
+                </div>
+                <span className="text-brand text-xs">{aberto ? '↑' : '↓'}</span>
+              </div>
+            </button>
+            {aberto && (
+              <div className="px-4 pb-4 pt-1 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-surface-border">
+                {COLUNAS_MEDIDAS.map((c) => (
+                  <div key={c.k} className="flex items-baseline justify-between">
+                    <span className="text-zinc-500 text-[11px]">{c.label}</span>
+                    <span className="text-zinc-200 text-xs font-bold tabular-nums">
+                      {m[c.k] == null ? <span className="text-zinc-600">—</span> : formatNum(m[c.k], c.sufixo)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

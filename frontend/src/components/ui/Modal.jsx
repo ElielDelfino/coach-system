@@ -23,20 +23,21 @@ export default function Modal({ open, onClose, title, children, footer, size = '
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center md:p-4 bg-black/70 md:backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-end md:items-center justify-center md:p-4 bg-black/70 md:backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className={`relative w-full bg-surface-card border-t md:border border-surface-border rounded-t-2xl md:rounded-lg shadow-2xl max-h-[92vh] md:max-h-[90vh] flex flex-col ${sizes[size]}`}
+        className={`relative w-full bg-surface-card border-t md:border border-surface-border rounded-t-2xl md:rounded-lg shadow-2xl max-h-[100dvh] md:max-h-[90vh] flex flex-col ${sizes[size]}`}
         onClick={(e) => e.stopPropagation()}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {/* Handle bar (mobile) */}
-        <div className="flex justify-center pt-3 pb-1 md:hidden">
+        <div className="flex justify-center pt-3 pb-1 md:hidden shrink-0">
           <div className="w-10 h-1 bg-zinc-700 rounded-full" />
         </div>
 
         {title && (
-          <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
             <h2 className="text-page-title text-base">{title}</h2>
             <button
               onClick={onClose}
@@ -47,9 +48,9 @@ export default function Modal({ open, onClose, title, children, footer, size = '
             </button>
           </div>
         )}
-        <div className="px-5 py-4 overflow-y-auto flex-1">{children}</div>
+        <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">{children}</div>
         {footer && (
-          <div className="px-5 py-3 border-t border-surface-border flex items-center justify-end gap-2 flex-wrap">
+          <div className="px-5 py-3 border-t border-surface-border flex items-center justify-end gap-2 flex-wrap bg-surface-card shrink-0">
             {footer}
           </div>
         )}

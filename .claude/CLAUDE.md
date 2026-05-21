@@ -67,39 +67,28 @@
 
 ---
 
-## Próximas tarefas / estado atual
+## Estado atual
 
-_Atualize isso quando iniciar novo chat. Continuação completa do trabalho em [@prompts/HANDOFF.md]._
+_Última atualização: 2026-05-20. Detalhes históricos em [@prompts/HANDOFF.md]._
 
-**Última sessão (2026-05-20): Bloco 2 — frontend confiável**
-- `frontend/src/components/ErrorBoundary.jsx` (class component) criado e envolvendo o root em `main.jsx` por fora de `BrowserRouter`. Mostra `error.stack` em DEV; CTAs "Tentar de novo" (reset) e "Recarregar" no estilo visual do projeto.
-- ESLint + Prettier configurados em `frontend/` e `backend/`. Frontend: `eslint`, `eslint-config-prettier`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`, `prettier`. Backend: `eslint`, `eslint-config-prettier`, `prettier`. Scripts `lint`, `lint:fix`, `format`, `format:check` em ambos.
-- Baseline frontend: 0 errors, 10 warnings tolerados (limpar incrementalmente). Baseline backend: clean (0/0) — `lint:fix` removeu 3 `eslint-disable` órfãos em `ProtocoloBuilder.jsx` e import órfão `alunoModel` em `authController.js`.
+**Refatoração pré-produção: CONCLUÍDA** — todos os 6 blocos entregues nas sessões de 2026-05-19 e 2026-05-20.
 
-**Sessão (2026-05-20): Bloco 3 — validação backend com zod**
-- `zod@^3.25.76` adicionado. Middleware `src/middlewares/validate.js` (factory `validate(schema, source='body')`) faz `schema.parse(req[source])`, retorna 400 com `{ message, errors:[{path,message}] }` se falhar.
-- `src/schemas/` criado com 14 arquivos (`_common.js` + 13 de domínio: alunos, medidas, fotos, pagamentos, faturas, exercicios, alimentos, cardio, protocolos, refeicoes, treinos, suplementacao, auth). Espelham os controllers.
-- 30 rotas POST/PUT/PATCH em `routes/admin.js` + `/login` em `routes/auth.js` agora têm `validate(schema)` antes do handler. Controllers limpos das validações manuais — só checks de existência de recurso (404) permanecem.
-- Recursos zod usados: `z.discriminatedUnion` (createTreinoExercicio), `.superRefine` (data_fim >= data_inicio), `z.coerce.number` (campos numéricos), enums centralizados (METODOS/FASES/UNIDADES/NIVEIS/INTENSIDADES).
+### O que foi feito (resumo)
 
-**Sessão (2026-05-20): Bloco 1 — production safety**
-- `pg_advisory_lock(4242424242)` em `migrate.js` e `seed.js` — réplicas serializam no boot (corrige race condition no Swarm).
-- Healthcheck no serviço `backend` do `docker-compose.yml` apontando para `GET /health` via `node -e http.get(...)`.
-- `envalid@8.1.1` valida env vars críticos no boot (`backend/src/config/env.js`): falha cedo se faltar `JWT_SECRET`, `JWT_REFRESH_SECRET`, `DATABASE_URL`, `REDIS_URL`, `AWS_*`.
+| Bloco | Item | Status |
+|-------|------|--------|
+| 1 — Production safety | `pg_advisory_lock` no boot, healthcheck, `envalid` | ✅ |
+| 2 — Frontend confiável | `ErrorBoundary`, ESLint + Prettier (front + back) | ✅ |
+| 3 — Validação backend | `zod` + middleware `validate` em 30+ rotas | ✅ |
+| 4 — Split de páginas gigantes | `AlunoDetalhe` (2046l→138l), `ProtocoloBuilder` (2030l→121l) | ✅ |
+| 5 — Performance | `React.lazy()` nas rotas admin, cache Redis inadimplência (TTL 60s), pool tuning `pg` | ✅ |
+| 6 — Observabilidade | Logger pino + request-id (105 `console.*` migrados), vitest (29 testes) | ✅ |
 
-**Sessão anterior (2026-05-19): refatoração estrutural**
-- Removidos `node_modules` do controle de versão (5224 arquivos).
-- Backend hardening: `helmet`, `express-rate-limit` (login 10/15min, api 120/min), `express.json` com 1mb, `GET /health`, `trust proxy` em `server.js`.
-- `docs/api-contract.md` e `docs/ui-contract.md` reescritos/atualizados — alinhados com o código real (8 endpoints faltantes adicionados, status do aluno corrigido para 4 estados, faturas documentadas).
-- Frontend: `AlunoShell` agora usa `<Outlet/>` + nested route. `AlunoLayout` deriva página ativa por `useLocation()`. As 4 páginas (`Home/Treino/Dieta/Perfil`) não importam mais o layout.
-- Backend: `controllers/adminController.js` (1298l) → 13 arquivos em `controllers/admin/`.
-- Backend: `models/aluno.js` (1325l) → 14 arquivos em `models/` + `_shared.js` (helpers cross-domínio) + `index.js` (barrel). Padrão "uma tabela = um arquivo" documentado em `docs/CODE-RULES.md`.
-- Controllers importam `require('../../models')` (barrel) — futuras divisões são transparentes.
+### Pendentes (baixa prioridade — não bloqueiam deploy)
 
-**Estado de produção:** Nada foi deployado ainda. Tudo aplicado localmente, sem commit.
+1. Expandir testes vitest para outros models críticos (faturas, protocolos, refeicoes) — padrão: `vi.spyOn(pool, 'query')` em `.test.cjs`.
+2. C3 — separar `users.js` de `models/alunos.js` quando a app crescer.
+3. C4 — remover `version: "3.9"` obsoleto do `docker-compose.yml` (cosmético).
+4. C5 — considerar TypeScript progressivo em arquivos novos.
 
-**Próximas tarefas (priorizadas) — ver detalhes em [@prompts/HANDOFF.md]:**
-1. Páginas frontend gigantes: `AlunoDetalhe.jsx` (2046l) e `ProtocoloBuilder.jsx` (2030l) — quebrar em subcomponentes.
-2. Cache em Redis (60s) do status de inadimplência no `middlewares/auth.js`.
-3. Pool tuning no `pg` (`backend/src/config/db.js`).
-4. Frontend bundle de 849kb sem code-splitting — lazy-load das rotas admin.
+**Estado de produção:** Nada foi deployado ainda. Código está no working tree — falta commitar os splits do Bloco 4 (`aluno-detalhe/` e `protocolo-builder/`).

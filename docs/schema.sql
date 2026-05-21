@@ -466,3 +466,18 @@ ALTER TABLE exercicios
   ADD COLUMN IF NOT EXISTS video_youtube_url TEXT,
   ADD COLUMN IF NOT EXISTS video_tipo TEXT
     CHECK (video_tipo IN ('s3', 'youtube'));
+
+-- M014: histórico de sessões de treino executadas pelo aluno
+CREATE TABLE IF NOT EXISTS treino_sessoes (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  aluno_id      UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+  treino_id     UUID NOT NULL REFERENCES treinos(id) ON DELETE CASCADE,
+  iniciado_em   TIMESTAMP NOT NULL DEFAULT NOW(),
+  concluido_em  TIMESTAMP,
+  duracao_seg   INT,
+  exercicios    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  observacao    TEXT,
+  created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_treino_sessoes_aluno_data ON treino_sessoes (aluno_id, concluido_em DESC);
+CREATE INDEX IF NOT EXISTS idx_treino_sessoes_treino    ON treino_sessoes (treino_id);

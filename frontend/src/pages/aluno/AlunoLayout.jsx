@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { migrarLocalStorage } from '../../store/aluno';
 
 const ITENS = [
   { id: 'home',   label: 'Home',   icone: '🏠', rota: '/aluno/home' },
@@ -17,7 +20,12 @@ function derivarPaginaAtiva(pathname) {
 export default function AlunoLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const paginaAtiva = derivarPaginaAtiva(location.pathname);
+
+  useEffect(() => {
+    if (user?.id) migrarLocalStorage(user.id);
+  }, [user?.id]);
 
   return (
     <div className="min-h-screen bg-surface flex flex-col max-w-md mx-auto relative">

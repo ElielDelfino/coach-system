@@ -7,7 +7,7 @@ async function listFotos(req, res) {
     if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
     return res.json(await alunoModel.findFotos(req.params.id));
   } catch (err) {
-    console.error('[admin/listFotos]', err);
+    req.log.error({ err }, 'admin/listFotos');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -20,7 +20,7 @@ async function deleteFoto(req, res) {
     if (result.s3_key) await deletarArquivo(result.s3_key);
     return res.json({ message: 'Foto removida com sucesso.' });
   } catch (err) {
-    console.error('[admin/deleteFoto]', err);
+    req.log.error({ err }, 'admin/deleteFoto');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }
@@ -36,7 +36,7 @@ async function liberarFotos(req, res) {
       envio_fotos_liberado: liberado,
     });
   } catch (err) {
-    console.error('[admin/liberarFotos]', err);
+    req.log.error({ err }, 'admin/liberarFotos');
     return res.status(500).json({ message: 'Erro interno do servidor.' });
   }
 }

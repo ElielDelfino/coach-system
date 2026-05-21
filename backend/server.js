@@ -6,6 +6,10 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
+const pinoHttp = require('pino-http');
+const { randomUUID } = require('crypto');
+
+const logger = require('./src/config/logger');
 
 const migrate = require('./src/config/migrate');
 const seed = require('./src/config/seed');
@@ -20,6 +24,22 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
+
+app.use(
+  pinoHttp({
+    logger,
+    genReqId: () => randomUUID(),
+    customLogLevel: (_req, res) => {
+      if (res.statusCode >= 500) return 'error';
+      if (res.statusCode >= 400) return 'warn';
+      return 'info';
+    },
+    serializers: {
+      req: (req) => ({ id: req.id, method: req.method, url: req.url }),
+      res: (res) => ({ statusCode: res.statusCode }),
+    },
+  })
+);
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -60,17 +80,17 @@ app.use('/api/aluno', auth, authorize('aluno'), alunoRoutes);
 app.use((req, res) => res.status(404).json({ message: 'Rota não encontrada.' }));
 
 app.use((err, req, res, _next) => {
-  console.error('[unhandled]', err);
+  req.log.error({ err }, 'unhandled error');
   res.status(500).json({ message: 'Erro interno do servidor.' });
 });
 
 async function start() {
   await migrate();
   await seed();
-  app.listen(PORT, () => console.log(`[server] rodando na porta ${PORT}`));
+  app.listen(PORT, () => logger.info({ port: PORT }, 'server running'));
 }
 
 start().catch((err) => {
-  console.error('[server] Falha ao iniciar:', err.message);
+  logger.error({ err }, 'server failed to start');
   process.exit(1);
 });

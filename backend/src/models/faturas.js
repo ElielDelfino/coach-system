@@ -38,9 +38,11 @@ async function createFatura(aluno_id, { valor, data_vencimento, observacoes, des
 
 async function findFaturaById(id) {
   const { rows } = await pool.query(
-    `SELECT id, aluno_id, valor, data_vencimento, data_baixa, metodo_baixa, status, observacoes,
-            desconto_tipo, desconto_valor
-     FROM faturas WHERE id = $1`,
+    `SELECT f.id, f.aluno_id, a.user_id, f.valor, f.data_vencimento, f.data_baixa,
+            f.metodo_baixa, f.status, f.observacoes, f.desconto_tipo, f.desconto_valor
+     FROM faturas f
+     JOIN alunos a ON a.id = f.aluno_id
+     WHERE f.id = $1`,
     [id]
   );
   return rows[0] || null;
@@ -79,7 +81,7 @@ async function updateFatura(id, body) {
     params
   );
   const updated = rows[0];
-  return { fatura: { ...updated, valor_final: calcValorFinal(updated) } };
+  return { fatura: { ...updated, valor_final: calcValorFinal(updated) }, user_id: fatura.user_id };
 }
 
 async function darBaixaFatura(id, { data_baixa, metodo_baixa, observacoes }) {
@@ -101,7 +103,7 @@ async function darBaixaFatura(id, { data_baixa, metodo_baixa, observacoes }) {
     params
   );
   const updated = rows[0];
-  return { fatura: { ...updated, valor_final: calcValorFinal(updated) } };
+  return { fatura: { ...updated, valor_final: calcValorFinal(updated) }, user_id: fatura.user_id };
 }
 
 async function deleteFatura(id) {
@@ -109,7 +111,7 @@ async function deleteFatura(id) {
   if (!fatura) return { notFound: true };
 
   await pool.query(`DELETE FROM faturas WHERE id = $1`, [id]);
-  return { ok: true };
+  return { ok: true, user_id: fatura.user_id };
 }
 
 module.exports = {

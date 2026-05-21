@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const pool = require('./db');
+const logger = require('./logger');
 
 // Lock cross-réplicas: garante que apenas uma réplica execute migrações/seed por vez.
 // Compartilhado com seed.js — ambos usam a mesma chave para serializar o boot.
@@ -26,7 +27,7 @@ async function migrate() {
         'utf-8'
       );
       await client.query(sql);
-      console.log('[migrate] Schema aplicado com sucesso.');
+      logger.info('migrate: schema applied');
     } else {
       // Migrações idempotentes — aplica sempre
       await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS nome TEXT`);
@@ -135,7 +136,65 @@ async function migrate() {
           ADD COLUMN IF NOT EXISTS finalizado BOOLEAN NOT NULL DEFAULT false
       `);
 
-      console.log('[migrate] Migrações incrementais aplicadas.');
+      // M014: histórico de sessões de treino executadas pelo aluno
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS treino_sessoes (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          aluno_id      UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+          treino_id     UUID NOT NULL REFERENCES treinos(id) ON DELETE CASCADE,
+          iniciado_em   TIMESTAMP NOT NULL DEFAULT NOW(),
+          concluido_em  TIMESTAMP,
+          duracao_seg   INT,
+          exercicios    JSONB NOT NULL DEFAULT '[]'::jsonb,
+          observacao    TEXT,
+          created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_aluno_data ON treino_sessoes (aluno_id, concluido_em DESC)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_treino_sessoes_treino    ON treino_sessoes (treino_id)`);
+
+      // M015: check-ins diários de refeição (engajamento + métrica de aderência)
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS refeicao_checkins (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          aluno_id    UUID NOT NULL REFERENCES alunos(id)    ON DELETE CASCADE,
+          refeicao_id UUID NOT NULL REFERENCES refeicoes(id) ON DELETE CASCADE,
+          data        DATE NOT NULL DEFAULT CURRENT_DATE,
+          created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+          UNIQUE (aluno_id, refeicao_id, data)
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_refeicao_checkins_aluno_data ON refeicao_checkins (aluno_id, data DESC)`);
+
+      // M016: feedback semanal do aluno (auto-relato + medidas + humor) — vai para "caixa de mensagens" do coach
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS aluno_feedbacks (
+          id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          aluno_id           UUID NOT NULL REFERENCES alunos(id) ON DELETE CASCADE,
+          semana_inicio      DATE NOT NULL,
+          texto              TEXT NOT NULL,
+          peso_kg            NUMERIC(5,2),
+          percentual_gordura NUMERIC(5,2),
+          cintura_cm         NUMERIC(5,1),
+          humor              SMALLINT CHECK (humor       BETWEEN 1 AND 5),
+          energia            SMALLINT CHECK (energia     BETWEEN 1 AND 5),
+          dificuldade        SMALLINT CHECK (dificuldade BETWEEN 1 AND 5),
+          lido_pelo_coach    BOOLEAN NOT NULL DEFAULT false,
+          lido_em            TIMESTAMP,
+          created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+          UNIQUE (aluno_id, semana_inicio)
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_aluno_feedbacks_aluno_semana ON aluno_feedbacks (aluno_id, semana_inicio DESC)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_aluno_feedbacks_nao_lidos    ON aluno_feedbacks (lido_pelo_coach) WHERE lido_pelo_coach = false`);
+      await client.query(`
+        CREATE OR REPLACE TRIGGER trg_aluno_feedbacks_updated_at
+        BEFORE UPDATE ON aluno_feedbacks
+        FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at()
+      `);
+
+      logger.info('migrate: incremental migrations applied');
     }
 
     // Trigger de updated_at para faturas (idempotente)
@@ -157,7 +216,7 @@ async function migrate() {
       try {
         await client.query('SELECT pg_advisory_unlock($1)', [BOOT_LOCK_KEY]);
       } catch (err) {
-        console.error('[migrate] Falha ao liberar advisory lock:', err.message);
+        logger.error({ err }, 'migrate: failed to release advisory lock');
       }
     }
     client.release();
@@ -166,3 +225,12 @@ async function migrate() {
 
 module.exports = migrate;
 module.exports.BOOT_LOCK_KEY = BOOT_LOCK_KEY;
+
+if (require.main === module) {
+  migrate()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      logger.error({ err }, 'migrate: failed');
+      process.exit(1);
+    });
+}
