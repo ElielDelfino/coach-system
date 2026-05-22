@@ -3,6 +3,11 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# ─── EASYPANEL — descomente para passar a URL do backend como build arg ───────
+# ARG VITE_API_URL=/api
+# ENV VITE_API_URL=$VITE_API_URL
+# Build: docker build --build-arg VITE_API_URL=https://meubackend.easypanel.host/api ...
+# ─────────────────────────────────────────────────────────────────────────────
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false
 
@@ -17,8 +22,11 @@ FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Config nginx: proxy /api/ → backend e SPA fallback para React Router
+# ─── LOCAL: usa nginx.conf com proxy /api/ → backend:3000 ────────────────────
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+# ─── EASYPANEL: troque a linha acima por esta (nginx só SPA, sem proxy) ───────
+# COPY docker/nginx-spa.conf /etc/nginx/conf.d/default.conf
+# ─────────────────────────────────────────────────────────────────────────────
 
 EXPOSE 80
 
