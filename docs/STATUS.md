@@ -59,6 +59,17 @@ Todas as sessões de preparação para produção estão commitadas e no `main`.
 | `alimentos.test.cjs` — 8 testes | ✅ |
 | `exercicios.test.cjs` — 8 testes | ✅ |
 
+### Bloco 5 — Estabilização documental pós-migração (2026-05-26)
+
+| Item | Status |
+|------|--------|
+| Auditoria pós-migração da documentação (score 8.0/10) | ✅ |
+| `prompts/archive/README.md` — 3 ponteiros mortos substituídos por `docs/README.md` | ✅ |
+| Drift de migrações alinhado: `CLAUDE.md` + `DATABASE.md` agora refletem M001-M017 | ✅ |
+| `docs/schema.sql` eleito fonte canônica de migrações | ✅ |
+| `refactorareaaluno.patch` (órfão na raiz) removido — conteúdo já no git history | ✅ |
+| `alimentos-biblioteca-base.txt` movido para `scripts/seeds/` | ✅ |
+
 ---
 
 ## Estado de deploy
