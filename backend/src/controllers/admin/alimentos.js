@@ -3,8 +3,12 @@ const { deletarArquivo } = require('../../services/storage');
 
 async function listAlimentos(req, res) {
   try {
-    const { categoria, ativo = 'true', busca } = req.query;
-    return res.json(await alunoModel.findAlimentos({ categoria, busca, ativo: ativo !== 'false' }));
+    const { categoria, ativo = 'true', busca, limit, offset } = req.query;
+    const lim = Math.min(Math.max(parseInt(limit) || 200, 1), 500);
+    const off = Math.max(parseInt(offset) || 0, 0);
+    return res.json(await alunoModel.findAlimentos({
+      categoria, busca, ativo: ativo !== 'false', limit: lim, offset: off,
+    }));
   } catch (err) {
     req.log.error({ err }, 'admin/listAlimentos');
     return res.status(500).json({ message: 'Erro interno do servidor.' });

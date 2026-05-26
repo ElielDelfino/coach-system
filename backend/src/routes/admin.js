@@ -15,7 +15,9 @@ const treinos        = require('../controllers/admin/treinos');
 const suplementacao  = require('../controllers/admin/suplementacao');
 
 const { uploadThumbExerc, uploadVideoExerc, uploadFotoAlimento } = require('../middlewares/upload');
-const { validate } = require('../middlewares/validate');
+const { validate, validateUUIDParams } = require('../middlewares/validate');
+
+router.use(validateUUIDParams);
 
 const alunoSchemas        = require('../schemas/alunos');
 const medidaSchemas       = require('../schemas/medidas');

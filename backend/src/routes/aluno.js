@@ -1,7 +1,9 @@
 const router = require('express').Router();
 const alunoController = require('../controllers/alunoController');
 const { uploadFotoAluno } = require('../middlewares/upload');
-const { validate } = require('../middlewares/validate');
+const { validate, validateUUIDParams } = require('../middlewares/validate');
+
+router.use(validateUUIDParams);
 const sessoesSchemas = require('../schemas/treinoSessoes');
 const checkinSchemas = require('../schemas/refeicaoCheckins');
 const feedbackSchemas = require('../schemas/alunoFeedbacks');

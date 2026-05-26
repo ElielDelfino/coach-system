@@ -1,19 +1,30 @@
 const pool = require('../config/db');
 
-async function findAlimentos({ categoria, ativo = true, busca }) {
+async function findAlimentos({ categoria, ativo = true, busca, limit = 200, offset = 0 }) {
   const params = [];
   const conditions = [`al.ativo = $${params.push(ativo)}`];
   if (categoria) conditions.push(`al.categoria ILIKE $${params.push(`%${categoria}%`)}`);
   if (busca) conditions.push(`al.nome ILIKE $${params.push(`%${busca}%`)}`);
 
   const where = `WHERE ${conditions.join(' AND ')}`;
-  const { rows } = await pool.query(
-    `SELECT id, nome, categoria, quantidade_base, unidade, calorias,
-            proteinas, carboidratos, gorduras, foto_url, ativo
-     FROM alimentos AS al ${where} ORDER BY al.nome`,
-    params
-  );
-  return { data: rows, total: rows.length };
+  const filterParams = [...params];
+
+  const dataParams = [...filterParams, limit, offset];
+  const limitIdx  = dataParams.length - 1;
+  const offsetIdx = dataParams.length;
+
+  const [{ rows }, { rows: countRows }] = await Promise.all([
+    pool.query(
+      `SELECT id, nome, categoria, quantidade_base, unidade, calorias,
+              proteinas, carboidratos, gorduras, foto_url, ativo
+       FROM alimentos AS al ${where} ORDER BY al.nome
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      dataParams
+    ),
+    pool.query(`SELECT COUNT(*)::int AS total FROM alimentos AS al ${where}`, filterParams),
+  ]);
+
+  return { data: rows, total: countRows[0].total, limit, offset };
 }
 
 async function findAlimentoById(id) {

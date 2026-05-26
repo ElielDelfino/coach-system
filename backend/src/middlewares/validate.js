@@ -1,5 +1,16 @@
 const { ZodError } = require('zod');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateUUIDParams(req, res, next) {
+  for (const [key, val] of Object.entries(req.params)) {
+    if (val && !UUID_RE.test(val)) {
+      return res.status(400).json({ message: `Parâmetro inválido: ${key}.` });
+    }
+  }
+  next();
+}
+
 function formatErrors(zodError) {
   return zodError.issues.map(issue => ({
     path: issue.path.join('.') || '(root)',
@@ -29,4 +40,4 @@ function validate(schema, source = 'body') {
   };
 }
 
-module.exports = { validate };
+module.exports = { validate, validateUUIDParams };

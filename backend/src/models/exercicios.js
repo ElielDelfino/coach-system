@@ -1,7 +1,7 @@
 const pool = require('../config/db');
 const { decorarExercicio } = require('./_shared');
 
-async function findExercicios({ grupo_muscular, nivel, ativo = true, busca }) {
+async function findExercicios({ grupo_muscular, nivel, ativo = true, busca, limit = 200, offset = 0 }) {
   const params = [];
   const conditions = [`e.ativo = $${params.push(ativo)}`];
   if (grupo_muscular) conditions.push(`e.grupo_muscular ILIKE $${params.push(`%${grupo_muscular}%`)}`);
@@ -9,13 +9,24 @@ async function findExercicios({ grupo_muscular, nivel, ativo = true, busca }) {
   if (busca) conditions.push(`e.nome ILIKE $${params.push(`%${busca}%`)}`);
 
   const where = `WHERE ${conditions.join(' AND ')}`;
-  const { rows } = await pool.query(
-    `SELECT id, nome, grupo_muscular, equipamento, nivel,
-            thumbnail_url, video_url, video_tipo, video_youtube_url, ativo
-     FROM exercicios AS e ${where} ORDER BY e.nome`,
-    params
-  );
-  return { data: rows.map(decorarExercicio), total: rows.length };
+  const filterParams = [...params];
+
+  const dataParams = [...filterParams, limit, offset];
+  const limitIdx  = dataParams.length - 1;
+  const offsetIdx = dataParams.length;
+
+  const [{ rows }, { rows: countRows }] = await Promise.all([
+    pool.query(
+      `SELECT id, nome, grupo_muscular, equipamento, nivel,
+              thumbnail_url, video_url, video_tipo, video_youtube_url, ativo
+       FROM exercicios AS e ${where} ORDER BY e.nome
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      dataParams
+    ),
+    pool.query(`SELECT COUNT(*)::int AS total FROM exercicios AS e ${where}`, filterParams),
+  ]);
+
+  return { data: rows.map(decorarExercicio), total: countRows[0].total, limit, offset };
 }
 
 async function findExercicioById(id) {
