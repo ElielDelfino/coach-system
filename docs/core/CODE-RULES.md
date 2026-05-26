@@ -185,3 +185,15 @@ Ao modificar qualquer arquivo existente:
 2. Fazer apenas as alterações necessárias
 3. Nunca reescrever o arquivo inteiro sem necessidade
 4. Manter o estilo e padrões do código existente
+
+## Manutenção de contratos
+
+Ao alterar ou adicionar uma rota:
+
+1. Atualizar `docs/api-contract.md` (request, response, erros).
+2. Atualizar `docs/ui-contract.md` (shape JSON consumido pelo frontend).
+3. Se a alteração envolve schema: atualizar `docs/schema.sql` + `docs/core/DATABASE.md`.
+
+Nenhum agente inventa campos ou rotas. Se não estiver no contrato, perguntar antes.
+
+> Nota: quando o fatiamento por domínio for concluído (planejado), os passos 1 e 2 serão substituídos por "atualizar `docs/api/<dominio>.md`". Até lá, os contratos monolíticos são a fonte da verdade.
