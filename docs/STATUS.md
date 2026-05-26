@@ -70,6 +70,20 @@ Todas as sessões de preparação para produção estão commitadas e no `main`.
 | `refactorareaaluno.patch` (órfão na raiz) removido — conteúdo já no git history | ✅ |
 | `alimentos-biblioteca-base.txt` movido para `scripts/seeds/` | ✅ |
 
+### Bloco 6 — Estabilização 2: resolução das ressalvas (2026-05-26)
+
+| Item | Status |
+|------|--------|
+| Script legado *scripts/deploy.sh* removido (apontava para docker-compose.prod.yml inexistente) | ✅ |
+| Script legado *scripts/backup-db.sh* (rclone B2) removido — `docker/backup.sh` é o canônico | ✅ |
+| Permissões obsoletas em `.claude/settings.local.json` limpas | ✅ |
+| Rodapé de `docs/schema.sql` declara escopo parcial e remete a `DATABASE.md` + `migrate.js` | ✅ |
+| Regra de manutenção de migração M0XX adicionada em `docs/README.md` | ✅ |
+| `scripts/check-doc-links.sh` — validador de paths citados em docs | ✅ |
+| Validação executada: zero links quebrados | ✅ |
+
+**Pendência operacional:** se houver cron em produção apontando para o antigo *scripts/backup-db.sh*, removê-lo no manager (não impacta repo).
+
 ---
 
 ## Estado de deploy
