@@ -32,6 +32,9 @@ const env = cleanEnv(process.env, {
   RESEND_API_KEY: str({ default: '' }),
   EMAIL_FROM: str({ default: '' }),
 
+  // Monitoramento de erros (Sentry) — opcional; sem DSN o Sentry fica desabilitado
+  SENTRY_DSN: str({ default: '' }),
+
   // Admin inicial — criado no primeiro boot se não existir nenhum admin
   ADMIN_EMAIL: str({ default: '' }),
   ADMIN_PASSWORD: str({ default: '' }),

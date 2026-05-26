@@ -1,6 +1,9 @@
 require('dotenv').config();
 require('./src/config/env'); // valida env vars — derruba o boot se faltar algo crítico
 
+// Sentry deve ser inicializado antes de qualquer outro import
+const Sentry = require('./src/config/sentry');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -42,8 +45,15 @@ app.use(
   })
 );
 
+// CSP da API: responde só JSON — nenhum recurso externo deve ser carregado
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
 }));
 
 app.use(cors({
@@ -79,6 +89,9 @@ app.use('/api/admin', auth, authorize('admin'), adminRoutes);
 app.use('/api/aluno', auth, authorize('aluno'), alunoRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Rota não encontrada.' }));
+
+// Sentry captura exceções não tratadas antes do handler genérico
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, _next) => {
   req.log.error({ err }, 'unhandled error');
