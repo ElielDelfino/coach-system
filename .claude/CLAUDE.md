@@ -18,6 +18,12 @@
 
 ---
 
+## Mapa da documentação
+
+@docs/README.md
+
+---
+
 ## Stack resumido
 
 @docs/core/STACK.md
