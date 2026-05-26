@@ -19,14 +19,21 @@ async function seed() {
       return;
     }
 
-    const senhaHash = await bcrypt.hash('Coach@2025', 12);
+    const email = process.env.ADMIN_EMAIL;
+    const senha = process.env.ADMIN_PASSWORD;
+    if (!email || !senha) {
+      logger.warn('seed: ADMIN_EMAIL ou ADMIN_PASSWORD não definidos — admin não criado');
+      return;
+    }
+
+    const senhaHash = await bcrypt.hash(senha, 12);
     await client.query(
       `INSERT INTO users (email, nome, senha_hash, role, ativo)
        VALUES ($1, $2, $3, 'admin', true)`,
-      ['admin@coach.com', 'Administrador', senhaHash]
+      [email, 'Administrador', senhaHash]
     );
 
-    logger.info('seed: default admin created');
+    logger.info({ email }, 'seed: default admin created');
   } finally {
     if (locked) {
       try {

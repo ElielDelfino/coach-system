@@ -73,12 +73,30 @@ async function refresh(req, res) {
 
 async function logout(req, res) {
   try {
-    const token = req.token;
-    if (token) {
-      const decoded = jwt.decode(token);
-      const ttl = decoded?.exp ? decoded.exp - Math.floor(Date.now() / 1000) : 3600;
-      if (ttl > 0) await redis.set(`blacklist:${token}`, '1', 'EX', ttl);
+    const now = Math.floor(Date.now() / 1000);
+    const ops = [];
+
+    // Invalida access token pelo tempo restante até expirar
+    const accessToken = req.token;
+    if (accessToken) {
+      const decoded = jwt.decode(accessToken);
+      const ttl = decoded?.exp ? decoded.exp - now : 3600;
+      if (ttl > 0) ops.push(redis.set(`blacklist:${accessToken}`, '1', 'EX', ttl));
     }
+
+    // Invalida refresh token pelo tempo restante (7d máx)
+    const refreshToken = req.cookies?.refreshToken;
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const ttl = decoded.exp ? decoded.exp - now : 7 * 24 * 3600;
+        if (ttl > 0) ops.push(redis.set(`blacklist:${refreshToken}`, '1', 'EX', ttl));
+      } catch {
+        // token já expirado ou inválido — não precisa invalidar
+      }
+    }
+
+    await Promise.all(ops);
 
     res.clearCookie('refreshToken', { httpOnly: true, sameSite: 'Strict' });
     return res.json({ message: 'Sessão encerrada com sucesso.' });
