@@ -311,6 +311,64 @@ docker stack rm coach
 
 ---
 
+## Backup do banco de dados
+
+O script `docker/backup.sh` faz `pg_dump` via container temporário na overlay
+network (sem expor a porta 5432 ao host) e salva em `/opt/coach-backups/`.
+
+### Configuração inicial (uma vez no manager)
+
+```bash
+# 1. Copiar o script para o servidor
+cp docker/backup.sh /opt/coach/docker/backup.sh
+chmod +x /opt/coach/docker/backup.sh
+
+# 2. Criar diretório de backups
+mkdir -p /opt/coach-backups
+
+# 3. Configurar cron (diário às 03:00)
+echo '0 3 * * * root set -a && source /opt/coach/.env && set +a && bash /opt/coach/docker/backup.sh >> /var/log/coach-backup.log 2>&1' \
+  > /etc/cron.d/coach-backup
+chmod 644 /etc/cron.d/coach-backup
+```
+
+### Executar backup manualmente
+
+```bash
+set -a && source /opt/coach/.env && set +a
+bash /opt/coach/docker/backup.sh
+```
+
+### Listar backups existentes
+
+```bash
+ls -lh /opt/coach-backups/
+```
+
+### Restaurar um backup
+
+```bash
+# Identificar o arquivo
+ARQUIVO=/opt/coach-backups/coach_db_20260526_030001.sql.gz
+
+# Restaurar (atenção: apaga dados atuais do banco)
+gunzip -c "$ARQUIVO" | docker run --rm -i \
+  --network coach_coach_network \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres:16-alpine \
+  psql -h database -U "$POSTGRES_USER" "$POSTGRES_DB"
+```
+
+### Variáveis de ambiente do backup
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `BACKUP_RETENTION_DAYS` | `14` | Dias de retenção dos arquivos |
+| `BACKUP_DIR` | `/opt/coach-backups` | Diretório local dos backups |
+| `STACK` | `coach` | Nome da stack no Swarm |
+
+---
+
 ## Arquitetura do Swarm
 
 ```

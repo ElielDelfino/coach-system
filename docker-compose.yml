@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
 
   # ─────────────────────────────────────────
@@ -67,6 +65,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@cache:6379
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      FRONTEND_URL: https://${DOMAIN}
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
