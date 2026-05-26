@@ -24,39 +24,28 @@
 
 ---
 
-## Stack resumido
-
-@docs/core/STACK.md
-
----
-
-## Banco de dados & migrações
-
-@docs/core/DATABASE.md
-
----
-
-## Autenticação & autorização
-
-@docs/core/AUTH.md
-
----
-
 ## Regras de código
 
 @docs/core/CODE-RULES.md
 
 ---
 
-## Design system
+## Docs sob demanda (carregar conforme tarefa)
 
-@docs/core/DESIGN-SYSTEM.md
+| Tarefa | Docs adicionais |
+|--------|----------------|
+| Backend / schema | `docs/core/DATABASE.md`, `docs/core/AUTH.md` |
+| Frontend / UI | `docs/core/DESIGN-SYSTEM.md` |
+| Deploy / infra | `docs/core/STACK.md`, `docs/ops/docker.md` |
+| Auth | `docs/core/AUTH.md`, `docs/api/auth.md` |
+
+Ver `docs/README.md` para a matriz completa.
 
 ---
 
 ## Contratos & documentação
 
-- `docs/schema.sql` — Schema + migrações M001-M005, M008, M009
+- `docs/schema.sql` — Schema + migrações M001-M012
 - `docs/api/<dominio>.md` — Contrato de rotas + Shape UI por domínio (ver `docs/api/_index.md`)
 - `docs/api/_conventions.md` — Convenções transversais (auth, erros, rate limit)
 - `docs/ops/docker.md` — Comandos Docker completos

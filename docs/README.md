@@ -24,21 +24,6 @@ arquivos relevantes à tarefa em vez de varrer todo o diretório.
 | `docs/ops/docker.md` | Comandos operacionais Docker Swarm. |
 | `prompts/archive/` | Histórico arqueológico — NÃO é especificação vigente. |
 
-## Dependência entre documentos
-
-- `CLAUDE.md` e `docs/README.md` são os únicos arquivos que referenciam muitos outros.
-- `docs/core/*` são folhas — não dependem entre si.
-- `docs/api/<dominio>.md` referenciam `docs/api/_conventions.md` e `docs/core/DATABASE.md`.
-- Sem ciclos. `core/*` nunca referencia `docs/api/*`.
-
-## Ordem de leitura pela IA
-
-Toda sessão (auto-carregado via `@include`):
-1. `.claude/CLAUDE.md`
-2. `docs/README.md` (este arquivo)
-
-Sob demanda, conforme o tipo de tarefa — ver matriz abaixo.
-
 ## Matriz: tipo de tarefa → arquivos a carregar
 
 | Tarefa | Sempre | Conforme contexto |

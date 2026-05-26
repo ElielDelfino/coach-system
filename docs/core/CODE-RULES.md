@@ -195,5 +195,3 @@ Ao alterar ou adicionar uma rota:
 3. Se a alteração envolve schema: atualizar `docs/schema.sql` + `docs/core/DATABASE.md`.
 
 Nenhum agente inventa campos ou rotas. Se não estiver no contrato, perguntar antes.
-
-Os arquivos `docs/_legacy_api-contract.md` e `docs/_legacy_ui-contract.md` são versões anteriores ao fatiamento por domínio — **não são vigentes** e serão removidos. Não editar.
