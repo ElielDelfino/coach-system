@@ -394,7 +394,12 @@ END;
 $$;
 
 -- ============================================================
--- MIGRAÇÕES — aplicar em banco já existente (idempotentes)
+-- MIGRAÇÕES — referência SQL parcial (M001-M010, M014)
+-- ============================================================
+-- ATENÇÃO: este bloco é histórico e INCOMPLETO. Não use para subir
+-- banco do zero. Fonte canônica de migrações aplicadas:
+--   - Lista completa M001-M017: docs/core/DATABASE.md
+--   - Implementação efetiva: backend/src/config/migrate.js
 -- ============================================================
 
 -- M001 — 2026-05-15: nome do usuário na tabela users

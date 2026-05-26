@@ -46,4 +46,10 @@ Ao alterar/adicionar rota:
 - Atualizar `docs/api/_index.md` se novo prefixo.
 - Se nova tabela: atualizar `docs/schema.sql` + `docs/core/DATABASE.md`.
 
+Ao adicionar migração M0XX:
+- Implementar em `backend/src/config/migrate.js` (fonte de verdade da execução).
+- Atualizar a tabela em `docs/core/DATABASE.md` (descrição humana).
+- Atualizar o range em `.claude/CLAUDE.md` (`M001-M0XX`).
+- Atualizar `docs/STATUS.md` se a migração for parte de uma entrega visível.
+
 Nenhum agente inventa campos ou rotas. Se não estiver no contrato, perguntar.
