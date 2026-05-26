@@ -20,25 +20,25 @@
 
 ## Stack resumido
 
-@docs/STACK.md
+@docs/core/STACK.md
 
 ---
 
 ## Banco de dados & migrações
 
-@docs/DATABASE.md
+@docs/core/DATABASE.md
 
 ---
 
 ## Autenticação & autorização
 
-@docs/AUTH.md
+@docs/core/AUTH.md
 
 ---
 
 ## Regras de código
 
-@docs/CODE-RULES.md
+@docs/core/CODE-RULES.md
 
 ---
 
@@ -61,7 +61,7 @@
 - `docs/schema.sql` — Schema + migrações M001-M005, M008, M009
 - `docs/api-contract.md` — Todas as rotas (body + response)
 - `docs/ui-contract.md` — Shapes JSON do frontend
-- `docker-setup.md` — Comandos Docker completos
+- `docs/ops/docker.md` — Comandos Docker completos
 
 **Regra crítica:** Nenhum agente inventa campos ou rotas. Se não estiver no contrato, perguntar antes.
 

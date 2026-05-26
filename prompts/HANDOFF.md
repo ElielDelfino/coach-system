@@ -242,7 +242,7 @@ Na sessão de 2026-05-19 fiz uma auditoria completa e atacamos a primeira leva d
 - 14 arquivos de domínio criados em `models/`:
   - `alunos.js`, `medidas.js`, `fotos.js`, `pagamentos.js`, `faturas.js`, `exercicios.js`, `alimentos.js`, `cardio.js`, `protocolos.js`, `refeicoes.js`, `refeicao_itens.js`, `substitutos.js`, `treinos.js`, `treino_exercicios.js`, `suplementacao.js`.
 - `models/index.js` é o **barrel** — todos os controllers fazem `require('../../models')`. Futuras refatorações são transparentes.
-- Padrão **"uma tabela = um arquivo"** documentado em `docs/CODE-RULES.md` com a regra:
+- Padrão **"uma tabela = um arquivo"** documentado em `docs/core/CODE-RULES.md` com a regra:
   > Quando uma operação cruza tabelas (leitura agregada, duplicação em cascata, transação multi-tabela), ela vive no domínio cujo ponto de entrada ela tem — não num arquivo misto.
 
 ### 2.7 Verificação
@@ -391,7 +391,7 @@ Depois disso, escolha um bloco da seção 5. **Blocos 1, 2, 3, 4 concluídos.** 
 
 ---
 
-## 7. Regras invioláveis (já no `CLAUDE.md` + `docs/CODE-RULES.md`)
+## 7. Regras invioláveis (já no `CLAUDE.md` + `docs/core/CODE-RULES.md`)
 
 - Controllers importam `require('../../models')` (barrel). **Nunca** importam arquivo de domínio direto.
 - Helpers cross-domínio (puros, sem I/O) **só** em `models/_shared.js`. Não duplicar.
@@ -412,7 +412,7 @@ Depois disso, escolha um bloco da seção 5. **Blocos 1, 2, 3, 4 concluídos.** 
 
 | Para entender... | Olhar |
 |---|---|
-| Estado atual da arquitetura | `docs/CODE-RULES.md` (seção "Estrutura de pastas") |
+| Estado atual da arquitetura | `docs/core/CODE-RULES.md` (seção "Estrutura de pastas") |
 | Padrão de model | `backend/src/models/index.js` (comentário no topo) e `backend/src/models/_shared.js` |
 | Contrato de API real | `docs/api-contract.md` |
 | Shapes do frontend | `docs/ui-contract.md` |
