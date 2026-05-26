@@ -37,6 +37,11 @@ aluno_fotos                                         refeicao_item_substitutos
 | M010 | ALTER TABLE exercicios ADD COLUMN video_youtube_url, video_tipo |
 | M011 | ALTER TABLE protocolos ADD COLUMN meta_agua_litros (default 2.5) |
 | M012 | ALTER TABLE alunos ADD COLUMN envio_fotos_liberado (default false) |
+| M013 | Flag de protocolo finalizado (distinto de inativo) |
+| M014 | Histórico de sessões de treino executadas pelo aluno |
+| M015 | Check-ins diários de refeição (engajamento + aderência) |
+| M016 | Feedback semanal do aluno (auto-relato + medidas + humor) |
+| M017 | Audit trail de operações críticas (tabela `audit_log`) |
 
 ---
 

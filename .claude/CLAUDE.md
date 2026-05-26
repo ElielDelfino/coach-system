@@ -45,7 +45,7 @@ Ver `docs/README.md` para a matriz completa.
 
 ## Contratos & documentação
 
-- `docs/schema.sql` — Schema + migrações M001-M012
+- `docs/schema.sql` — Schema + migrações M001-M017 (fonte canônica)
 - `docs/api/<dominio>.md` — Contrato de rotas + Shape UI por domínio (ver `docs/api/_index.md`)
 - `docs/api/_conventions.md` — Convenções transversais (auth, erros, rate limit)
 - `docs/ops/docker.md` — Comandos Docker completos

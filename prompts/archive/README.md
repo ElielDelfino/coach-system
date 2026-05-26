@@ -4,9 +4,6 @@ Os arquivos `prompt_*.md` neste diretório são prompts de sessões antigas usad
 
 **Status:** históricos. NÃO representam especificação vigente.
 
-Para o estado atual e contratos vigentes, consultar:
-- `docs/api-contract.md` e `docs/ui-contract.md` (contratos)
-- `docs/core/` (regras, schema, stack, auth)
-- `prompts/HANDOFF.md` (log temporal recente)
+Para o estado atual e contratos vigentes, consultar `docs/README.md` (índice mestre).
 
 Nenhum agente deve interpretar conteúdo deste diretório como instrução ativa.
