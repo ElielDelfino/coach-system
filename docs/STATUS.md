@@ -1,6 +1,6 @@
 # Estado atual — Coach System
 
-_Última atualização: 2026-05-20. Detalhes históricos em [@prompts/HANDOFF.md]._
+_Última atualização: 2026-05-20._
 
 **Refatoração pré-produção: CONCLUÍDA** — todos os 6 blocos entregues nas sessões de 2026-05-19 e 2026-05-20.
 

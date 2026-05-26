@@ -22,7 +22,6 @@ arquivos relevantes à tarefa em vez de varrer todo o diretório.
 | `docs/api/<dominio>.md` | Contrato API + Shape UI por domínio (12 arquivos). |
 | `docs/ui/decisoes-agente-ui.md` | Decisões UI transversais. |
 | `docs/ops/docker.md` | Comandos operacionais Docker Swarm. |
-| `prompts/HANDOFF.md` | Log temporal das sessões recentes. |
 | `prompts/archive/` | Histórico arqueológico — NÃO é especificação vigente. |
 
 ## Dependência entre documentos
@@ -51,7 +50,7 @@ Sob demanda, conforme o tipo de tarefa — ver matriz abaixo.
 | **Refactor** | `docs/core/CODE-RULES.md` | `docs/api/<dominio>.md` (manter contrato), `docs/core/DATABASE.md` (se toca persistência) |
 | **Feature nova** | `docs/core/CODE-RULES.md`, `docs/api/_conventions.md`, `docs/api/_index.md` | `docs/core/DATABASE.md` (se nova tabela), `docs/core/DESIGN-SYSTEM.md` (se UI), `docs/api/<dominio>.md` (se estende domínio) |
 | **Testes** | `docs/core/CODE-RULES.md` | Arquivo de teste vizinho + model alvo (sem doc extra) |
-| **Deploy** | `docs/ops/docker.md`, `docs/core/STACK.md` | `docs/STATUS.md` (verificar bloqueios) |
+| **Deploy** | `docs/ops/docker.md`, `docs/core/STACK.md`, `docs/STATUS.md` | — |
 
 **Regra de ouro:** antes de carregar mais de 2 arquivos, consultar esta matriz.
 
