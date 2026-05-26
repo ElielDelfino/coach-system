@@ -194,6 +194,23 @@ async function migrate() {
         FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at()
       `);
 
+      // M017: audit trail de operações críticas
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          usuario_id   UUID REFERENCES users(id) ON DELETE SET NULL,
+          acao         TEXT NOT NULL,
+          tabela       TEXT NOT NULL,
+          registro_id  UUID,
+          dados        JSONB,
+          ip           TEXT,
+          created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_usuario   ON audit_log (usuario_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_tabela    ON audit_log (tabela, registro_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created   ON audit_log (created_at DESC)`);
+
       logger.info('migrate: incremental migrations applied');
     }
 

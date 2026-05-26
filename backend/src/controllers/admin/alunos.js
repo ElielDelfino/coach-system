@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const alunoModel = require('../../models');
 const redis = require('../../config/redis');
+const { logAudit } = require('../../models/_shared');
 
 async function listAlunos(req, res) {
   try {
@@ -81,6 +82,10 @@ async function desativarAluno(req, res) {
     if (!userId) return res.status(404).json({ message: 'Aluno não encontrado.' });
     await redis.set(`blacklist:user:${userId}`, '1', 'EX', 7 * 24 * 3600);
     await redis.del(`aluno_status:${userId}`);
+    logAudit(require('../../config/db'), {
+      usuario_id: req.user.id, acao: 'desativar_aluno', tabela: 'alunos',
+      registro_id: req.params.id, ip: req.ip,
+    });
     return res.json({ message: 'Aluno desativado com sucesso.' });
   } catch (err) {
     req.log.error({ err }, 'admin/desativarAluno');
@@ -99,6 +104,10 @@ async function redefinirSenhaAluno(req, res) {
     const updated = await alunoModel.updateSenhaByAlunoId(req.params.id, senha_hash);
     if (!updated) return res.status(404).json({ message: 'Aluno não encontrado.' });
 
+    logAudit(require('../../config/db'), {
+      usuario_id: req.user.id, acao: 'redefinir_senha_aluno', tabela: 'alunos',
+      registro_id: req.params.id, ip: req.ip,
+    });
     return res.json({ message: 'Senha redefinida com sucesso.' });
   } catch (err) {
     req.log.error({ err }, 'admin/redefinirSenhaAluno');

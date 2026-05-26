@@ -1,3 +1,4 @@
+const pool = require('../config/db');
 const { extrairVideoIdYoutube, urlEmbedYoutube } = require('../services/storage');
 
 // ─── exercícios ────────────────────────────────────────────────────────────────
@@ -81,6 +82,21 @@ function recalcFaturaStatus(f) {
   return out;
 }
 
+// ─── audit trail ───────────────────────────────────────────────────────────────
+
+async function logAudit(clientOrPool, { usuario_id, acao, tabela, registro_id, dados, ip }) {
+  try {
+    await clientOrPool.query(
+      `INSERT INTO audit_log (usuario_id, acao, tabela, registro_id, dados, ip)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [usuario_id || null, acao, tabela, registro_id || null,
+       dados ? JSON.stringify(dados) : null, ip || null]
+    );
+  } catch {
+    // Audit nunca derruba a operação principal
+  }
+}
+
 module.exports = {
   decorarExercicio,
   calcMacros,
@@ -89,4 +105,5 @@ module.exports = {
   agruparFotosPorData,
   calcValorFinal,
   recalcFaturaStatus,
+  logAudit,
 };

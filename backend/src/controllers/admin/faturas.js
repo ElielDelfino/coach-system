@@ -1,5 +1,6 @@
 const alunoModel = require('../../models');
 const redis = require('../../config/redis');
+const { logAudit } = require('../../models/_shared');
 
 async function listFaturasAluno(req, res) {
   try {
@@ -18,6 +19,11 @@ async function createFatura(req, res) {
     if (!aluno) return res.status(404).json({ message: 'Aluno não encontrado.' });
     const fatura = await alunoModel.createFatura(req.params.id, req.body, req.user.id);
     await redis.del(`aluno_status:${aluno.user_id}`);
+    logAudit(require('../../config/db'), {
+      usuario_id: req.user.id, acao: 'criar_fatura', tabela: 'faturas',
+      registro_id: fatura.id, dados: { aluno_id: req.params.id, valor: fatura.valor },
+      ip: req.ip,
+    });
     return res.status(201).json(fatura);
   } catch (err) {
     req.log.error({ err }, 'admin/createFatura');
@@ -43,6 +49,11 @@ async function darBaixaFatura(req, res) {
     if (result.notFound) return res.status(404).json({ message: 'Fatura não encontrada.' });
     if (result.jaPago) return res.status(400).json({ message: 'Fatura já está paga.' });
     await redis.del(`aluno_status:${result.user_id}`);
+    logAudit(require('../../config/db'), {
+      usuario_id: req.user.id, acao: 'baixa_fatura', tabela: 'faturas',
+      registro_id: req.params.id, dados: { metodo_baixa: req.body.metodo_baixa },
+      ip: req.ip,
+    });
     return res.json(result.fatura);
   } catch (err) {
     req.log.error({ err }, 'admin/darBaixaFatura');
@@ -55,6 +66,10 @@ async function deleteFatura(req, res) {
     const result = await alunoModel.deleteFatura(req.params.id);
     if (result.notFound) return res.status(404).json({ message: 'Fatura não encontrada.' });
     await redis.del(`aluno_status:${result.user_id}`);
+    logAudit(require('../../config/db'), {
+      usuario_id: req.user.id, acao: 'deletar_fatura', tabela: 'faturas',
+      registro_id: req.params.id, ip: req.ip,
+    });
     return res.json({ message: 'Fatura removida.' });
   } catch (err) {
     req.log.error({ err }, 'admin/deleteFatura');
