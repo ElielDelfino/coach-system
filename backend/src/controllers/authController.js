@@ -63,7 +63,14 @@ async function refresh(req, res) {
     const payload = { id: decoded.id, email: decoded.email, role: decoded.role };
     if (decoded.aluno_id) payload.aluno_id = decoded.aluno_id;
 
-    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const accessToken  = jwt.sign(payload, process.env.JWT_SECRET,         { expiresIn: '1h' });
+    const newRefresh   = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+
+    // Rotação: invalida o refresh token usado para que não possa ser reutilizado
+    const oldTtl = decoded.exp ? decoded.exp - Math.floor(Date.now() / 1000) : 7 * 24 * 3600;
+    if (oldTtl > 0) await redis.set(`blacklist:${token}`, '1', 'EX', oldTtl);
+
+    res.cookie('refreshToken', newRefresh, COOKIE_OPTS);
     return res.json({ accessToken });
   } catch (err) {
     req.log.error({ err }, 'auth/refresh');

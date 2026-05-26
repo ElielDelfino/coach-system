@@ -115,6 +115,12 @@ services:
      - "80:80"      # build com docker/frontend.Dockerfile
     networks:
       - coach_network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     deploy:
       replicas: 2                     # escala horizontal
       update_config:

@@ -73,6 +73,14 @@ const loginLimiter = rateLimit({
   message: { message: 'Muitas tentativas de login. Tente novamente em alguns minutos.' },
 });
 
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Muitas requisições de renovação. Tente novamente em alguns minutos.' },
+});
+
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
@@ -81,7 +89,8 @@ const apiLimiter = rateLimit({
   message: { message: 'Muitas requisições. Aguarde antes de tentar novamente.' },
 });
 
-app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/login',   loginLimiter);
+app.use('/api/auth/refresh', refreshLimiter);
 app.use('/api', apiLimiter);
 
 app.use('/api/auth', authRoutes);
@@ -102,7 +111,25 @@ async function start() {
   await migrate();
   await seed();
   await seedAlimentos();
-  app.listen(PORT, () => logger.info({ port: PORT }, 'server running'));
+  const server = app.listen(PORT, () => logger.info({ port: PORT }, 'server running'));
+
+  function shutdown(signal) {
+    logger.info({ signal }, 'shutting down gracefully');
+    server.close(async () => {
+      try {
+        await require('./src/config/db').end();
+        await require('./src/config/redis').quit();
+      } catch (e) {
+        logger.error({ err: e }, 'error during shutdown cleanup');
+      }
+      process.exit(0);
+    });
+    // Força saída se não fechar em 10s
+    setTimeout(() => process.exit(1), 10_000).unref();
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT',  () => shutdown('SIGINT'));
 }
 
 start().catch((err) => {
