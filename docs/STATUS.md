@@ -2,39 +2,85 @@
 
 _Última atualização: 2026-05-26._
 
-**Refatoração pré-produção: CONCLUÍDA** — todos os 6 blocos entregues nas sessões de 2026-05-19 e 2026-05-20.
+## Hardening pré-deploy: CONCLUÍDO
 
-## O que foi feito (resumo)
+Todas as sessões de preparação para produção estão commitadas e no `main`.
 
-| Bloco | Item | Status |
-|-------|------|--------|
-| 1 — Production safety | `pg_advisory_lock` no boot, healthcheck, `envalid` | ✅ |
-| 2 — Frontend confiável | `ErrorBoundary`, ESLint + Prettier (front + back) | ✅ |
-| 3 — Validação backend | `zod` + middleware `validate` em 30+ rotas | ✅ |
-| 4 — Split de páginas gigantes | `AlunoDetalhe` (2046l→138l), `ProtocoloBuilder` (2030l→121l) | ✅ |
-| 5 — Performance | `React.lazy()` nas rotas admin, cache Redis inadimplência (TTL 60s), pool tuning `pg` | ✅ |
-| 6 — Observabilidade | Logger pino + request-id (105 `console.*` migrados), vitest (29 testes) | ✅ |
+---
 
-## Trabalho em andamento (não commitado)
+## O que foi feito (resumo por bloco)
 
-Arquivos modificados:
-- `backend/server.js`
-- `frontend/src/components/protocolo-builder/ModuloAlimentar.jsx`
-- `frontend/src/components/protocolo-builder/ModuloTreino.jsx`
-- `frontend/src/pages/admin/Alimentos.jsx`
-- `frontend/src/pages/admin/Exercicios.jsx`
+### Bloco 1 — Fundação de produção (sessões anteriores)
 
-Arquivos novos não rastreados:
-- `alimentos-biblioteca-base.txt` — biblioteca de alimentos para seed
-- `backend/src/config/seedAlimentos.js` — seed de alimentos
-- `frontend/src/lib/categoriasAlimentos.js` — categorias de alimentos
-- `frontend/src/lib/gruposMusculares.js` — grupos musculares
+| Item | Status |
+|------|--------|
+| `pg_advisory_lock` no boot (evita race conditions em multi-réplica) | ✅ |
+| Healthcheck no backend (`/health`) | ✅ |
+| `envalid` — validação de env vars no boot | ✅ |
+| `ErrorBoundary` no frontend | ✅ |
+| ESLint + Prettier (frontend + backend) | ✅ |
+| Validação Zod em 30+ rotas | ✅ |
+| `React.lazy()` nas rotas admin | ✅ |
+| Cache Redis para status de inadimplência (TTL 60s) | ✅ |
+| Logger pino + request-id (105 `console.*` migrados) | ✅ |
 
-## Pendentes (baixa prioridade — não bloqueiam deploy)
+### Bloco 2 — Hardening de segurança
 
-1. Expandir testes vitest para outros models críticos (faturas, protocolos, refeicoes) — padrão: `vi.spyOn(pool, 'query')` em `.test.cjs`.
-2. C3 — separar `users.js` de `models/alunos.js` quando a app crescer.
-3. C4 — remover `version: "3.9"` obsoleto do `docker-compose.yml` (cosmético).
-4. C5 — considerar TypeScript progressivo em arquivos novos.
+| Item | Status |
+|------|--------|
+| Refresh token rotation (invalida token usado, emite novo) | ✅ |
+| Rate limit no `/auth/refresh` (30 req/15min) | ✅ |
+| Logout invalida access + refresh token no Redis | ✅ |
+| Credenciais admin via `ADMIN_EMAIL`/`ADMIN_PASSWORD` (sem hardcode) | ✅ |
+| `validateUUIDParams` em todas as rotas com parâmetros UUID | ✅ |
+| Sentry com `beforeSend` filtrando cookies e Authorization | ✅ |
+| Content Security Policy: nginx (frontend) + helmet (API) | ✅ |
+| Audit trail: tabela `audit_log` (M017) + `logAudit()` | ✅ |
 
-**Estado de produção:** Nada foi deployado ainda. Código está no working tree — commitar os arquivos em andamento antes do deploy.
+### Bloco 3 — Infraestrutura e operação
+
+| Item | Status |
+|------|--------|
+| Paginação real com COUNT paralelo (alimentos, exercícios) | ✅ |
+| `FRONTEND_URL` no docker-compose (CORS correto em prod) | ✅ |
+| Backup automatizado (`docker/backup.sh` + cron docs) | ✅ |
+| `backend/.dockerignore` (sem node_modules / .env no contexto) | ✅ |
+| Graceful shutdown (SIGTERM fecha HTTP → pool PG → Redis) | ✅ |
+| Healthcheck no frontend (wget no nginx) | ✅ |
+| Gzip + cache imutável de 1 ano para assets Vite | ✅ |
+| `deploy.sh` com build + push opcional + status pós-deploy | ✅ |
+
+### Bloco 4 — Testes
+
+| Item | Status |
+|------|--------|
+| 80 testes vitest passando | ✅ |
+| `faturas.test.cjs` — 9 testes | ✅ |
+| `alimentos.test.cjs` — 8 testes | ✅ |
+| `exercicios.test.cjs` — 8 testes | ✅ |
+
+---
+
+## Estado de deploy
+
+**Não deployado ainda.** Código está no `main`, pronto para o primeiro deploy.
+
+### Checklist pré-deploy
+
+- [ ] Preencher `.env.prod` a partir de `.env.prod.example`
+- [ ] `docker swarm init` no manager (se ainda não feito)
+- [ ] `bash deploy.sh` na raiz do projeto
+- [ ] Configurar cron do backup (`docs/ops/docker.md` → seção Backup)
+- [ ] Apontar domínio para o IP do manager
+- [ ] Configurar TLS/HTTPS (Caddy, Traefik, ou Certbot+nginx externo)
+
+---
+
+## Pendentes (não bloqueiam o deploy)
+
+| # | Item | Prioridade |
+|---|------|-----------|
+| 1 | HTTPS/TLS — SSL termination (Certbot + nginx reverse proxy, Caddy, ou Traefik) | Alta |
+| 2 | Validação de integridade do backup (`gzip -t` após geração) | Média |
+| 3 | Testes E2E (Playwright) — fluxo de login, protocolo, fatura | Baixa |
+| 4 | `nginx-spa.conf` removido (arquivo órfão já deletado) | ✅ feito |
