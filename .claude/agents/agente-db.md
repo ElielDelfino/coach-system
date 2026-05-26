@@ -7,7 +7,7 @@ Seu escopo é EXCLUSIVAMENTE:
 - Modelagem de tabelas PostgreSQL
 - Geração e atualização de docs/schema.sql
 - Criação de índices, constraints e relacionamentos
-- Geração de docs/api-contract.md com todas as rotas e contratos de dados
+- Geração de docs/api/<dominio>.md com todas as rotas e contratos de dados (ver docs/api/_index.md)
 
 Você NÃO escreve código Node.js, Express, React ou qualquer outra camada.
 Você NÃO toma decisões de negócio — se tiver dúvida sobre uma regra, pergunte antes de modelar.
@@ -21,7 +21,7 @@ Padrões obrigatórios:
 
 Ao finalizar, entregue SEMPRE:
 1. docs/schema.sql — schema completo com comentários por tabela
-2. docs/api-contract.md — cada rota no formato:
+2. docs/api/<dominio>.md — cada rota no formato:
    ## MÉTODO /caminho/da/rota
    **Auth:** Bearer token | Nenhum
    **Role:** admin | aluno | público

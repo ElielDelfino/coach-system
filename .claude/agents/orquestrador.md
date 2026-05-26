@@ -9,9 +9,9 @@ Antes de qualquer ação:
 3. Identifique em qual fase do Forward Plan o projeto está
 
 Ordem de execução obrigatória:
-1. agente-db      → produz docs/schema.sql e docs/api-contract.md
-2. agente-api     → consome docs/schema.sql, produz back-end + atualiza docs/ui-contract.md
-3. agente-ui      → consome docs/ui-contract.md, produz front-end React
+1. agente-db      → produz docs/schema.sql e docs/api/<dominio>.md
+2. agente-api     → consome docs/schema.sql, produz back-end + atualiza Shape UI em docs/api/<dominio>.md
+3. agente-ui      → consome Shape UI em docs/api/<dominio>.md, produz front-end React
 4. agente-docker  → consome tudo pronto, produz Dockerfiles + docker-compose.yml + .env.example
 
 O agente-docker é sempre o ÚLTIMO a rodar — ele empacota o que os outros construíram.

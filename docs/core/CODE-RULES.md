@@ -190,10 +190,10 @@ Ao modificar qualquer arquivo existente:
 
 Ao alterar ou adicionar uma rota:
 
-1. Atualizar `docs/api-contract.md` (request, response, erros).
-2. Atualizar `docs/ui-contract.md` (shape JSON consumido pelo frontend).
+1. Atualizar `docs/api/<dominio>.md` (request, response, erros, Shape UI).
+2. Atualizar `docs/api/_index.md` se houver novo prefixo de módulo.
 3. Se a alteração envolve schema: atualizar `docs/schema.sql` + `docs/core/DATABASE.md`.
 
 Nenhum agente inventa campos ou rotas. Se não estiver no contrato, perguntar antes.
 
-> Nota: quando o fatiamento por domínio for concluído (planejado), os passos 1 e 2 serão substituídos por "atualizar `docs/api/<dominio>.md`". Até lá, os contratos monolíticos são a fonte da verdade.
+Os arquivos `docs/_legacy_api-contract.md` e `docs/_legacy_ui-contract.md` são versões anteriores ao fatiamento por domínio — **não são vigentes** e serão removidos. Não editar.

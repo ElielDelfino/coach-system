@@ -57,8 +57,8 @@
 ## Contratos & documentação
 
 - `docs/schema.sql` — Schema + migrações M001-M005, M008, M009
-- `docs/api-contract.md` — Todas as rotas (body + response)
-- `docs/ui-contract.md` — Shapes JSON do frontend
+- `docs/api/<dominio>.md` — Contrato de rotas + Shape UI por domínio (ver `docs/api/_index.md`)
+- `docs/api/_conventions.md` — Convenções transversais (auth, erros, rate limit)
 - `docs/ops/docker.md` — Comandos Docker completos
 
 **Regra crítica:** Nenhum agente inventa campos ou rotas. Se não estiver no contrato, perguntar antes.

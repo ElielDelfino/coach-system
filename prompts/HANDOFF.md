@@ -47,7 +47,7 @@ Cole este arquivo inteiro no início do próximo chat. Ele dá ao Claude:
 - O plano sugerido para cada item
 - Comandos de verificação para confirmar o estado
 
-O `CLAUDE.md` na raiz já referencia este arquivo. Os contratos em `docs/api-contract.md` e `docs/ui-contract.md` estão atualizados — não invente rotas.
+O `CLAUDE.md` na raiz já referencia este arquivo. Os contratos em `docs/api/<dominio>.md` (ver `docs/api/_index.md`) estão atualizados — não invente rotas.
 
 ---
 
@@ -397,7 +397,7 @@ Depois disso, escolha um bloco da seção 5. **Blocos 1, 2, 3, 4 concluídos.** 
 - Helpers cross-domínio (puros, sem I/O) **só** em `models/_shared.js`. Não duplicar.
 - Uma tabela = um arquivo de model. Operações cross-tabela vivem no domínio "pai".
 - Validação, status HTTP e mensagens vivem no **controller**. Model é puro SQL + regra de negócio do dado.
-- Nada de inventar rotas/campos — sempre conferir `docs/api-contract.md` e `docs/ui-contract.md` antes.
+- Nada de inventar rotas/campos — sempre conferir `docs/api/<dominio>.md` antes (ver `docs/api/_index.md`).
 - Access token nunca em `localStorage`. Sempre em React Context.
 - Queries SQL sempre com parâmetros posicionais `$1, $2`. Nunca interpolação.
 - `helmet`, `express-rate-limit`, `/health` já estão em `server.js`. Não remover.
@@ -414,8 +414,8 @@ Depois disso, escolha um bloco da seção 5. **Blocos 1, 2, 3, 4 concluídos.** 
 |---|---|
 | Estado atual da arquitetura | `docs/core/CODE-RULES.md` (seção "Estrutura de pastas") |
 | Padrão de model | `backend/src/models/index.js` (comentário no topo) e `backend/src/models/_shared.js` |
-| Contrato de API real | `docs/api-contract.md` |
-| Shapes do frontend | `docs/ui-contract.md` |
+| Contrato de API real | `docs/api/<dominio>.md` (ver `docs/api/_index.md`) |
+| Shapes do frontend | Subseção "Shape UI" em `docs/api/<dominio>.md` |
 | Schema do banco | `docs/schema.sql` |
 | Hardening de prod | `backend/server.js` |
 | Auth flow | `backend/src/middlewares/auth.js` + `backend/src/controllers/authController.js` + `frontend/src/services/api.js` + `frontend/src/context/AuthContext.jsx` |
