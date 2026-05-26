@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import api from '../../services/api';
+import { CATEGORIAS_ALIMENTOS, categoriaColors } from '../../lib/categoriasAlimentos';
 import { useToast, errorMessage } from '../ui/Toast';
 import { Card } from '../ui/Card';
 import Button from '../ui/Button';
@@ -714,6 +715,7 @@ function AdicionarItemModal({ open, onClose, refeicaoId, proximoOrdem, onAdded }
 function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false, keepOpen = false }) {
   const toast = useToast();
   const [busca, setBusca] = useState('');
+  const [categoria, setCategoria] = useState('');
   const [data, setData] = useState([]);
   const [selected, setSelected] = useState(null);
   const [qtd, setQtd] = useState('');
@@ -725,21 +727,26 @@ function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false, keepOpen
 
   useEffect(() => {
     if (!open) return;
-    setBusca(''); setData([]); setSelected(null); setQtd(''); setObs('');
+    setBusca(''); setCategoria(''); setData([]); setSelected(null); setQtd(''); setObs('');
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(async () => {
       try {
-        const res = await api.get('/admin/alimentos', { params: { busca: busca || undefined } });
+        const res = await api.get('/admin/alimentos', {
+          params: {
+            busca: busca || undefined,
+            categoria: categoria || undefined,
+          },
+        });
         setData(res.data.data || []);
       } catch (err) { toast.error(errorMessage(err)); }
     }, 250);
     return () => clearTimeout(t);
     // toast é estável após a correção do ToastProvider (useMemo) — não precisa ser dep
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, busca]);
+  }, [open, busca, categoria]);
 
   // Preview de macros (visual, não persistido — servidor é fonte da verdade)
   const preview = useMemo(() => {
@@ -774,35 +781,77 @@ function BuscaAlimentoModal({ open, onClose, onSelect, withObs = false, keepOpen
       </>}
     >
       <div className="space-y-3">
-        <Input autoFocus placeholder="Buscar alimento na biblioteca…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input
+            autoFocus
+            placeholder="Buscar alimento na biblioteca…"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="flex-1"
+          />
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            className="sm:w-56 bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+          >
+            <option value="">Todas as categorias</option>
+            {CATEGORIAS_ALIMENTOS.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
 
-        <Card className="max-h-64 overflow-y-auto">
+        <Card className="max-h-80 overflow-y-auto">
           {data.length === 0 && (
             <div className="text-center text-zinc-500 py-8 text-sm">Nenhum resultado.</div>
           )}
-          {data.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => { setSelected(a); if (!qtd) setQtd(a.quantidade_base); }}
-              className={clsx(
-                'w-full text-left px-4 py-2.5 text-sm border-b border-surface-border transition-colors',
-                selected?.id === a.id
-                  ? 'bg-brand/10 border-l-2 border-l-brand'
-                  : 'hover:bg-surface-elevated'
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-white">{a.nome}</div>
-                  <div className="text-xs text-zinc-500">{a.categoria || '—'} · {a.quantidade_base}{a.unidade === 'gramas' ? 'g' : ` ${a.unidade}`}</div>
+          {data.map((a) => {
+            const c = categoriaColors(a.categoria);
+            return (
+              <button
+                key={a.id}
+                onClick={() => { setSelected(a); if (!qtd) setQtd(a.quantidade_base); }}
+                className={clsx(
+                  'w-full text-left px-3 py-2.5 text-sm border-b border-surface-border transition-colors flex items-center gap-3',
+                  selected?.id === a.id
+                    ? 'bg-brand/10 border-l-2 border-l-brand'
+                    : 'hover:bg-surface-elevated'
+                )}
+              >
+                {a.foto_url ? (
+                  <img
+                    src={a.foto_url}
+                    alt={a.nome}
+                    className="w-12 h-12 rounded-lg object-cover bg-surface-elevated shrink-0"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className={clsx(
+                    'w-12 h-12 rounded-lg bg-surface-elevated border border-surface-border shrink-0 flex items-center justify-center',
+                  )}>
+                    <span className={clsx('w-2.5 h-2.5 rounded-full', c.dot)} />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-white truncate">{a.nome}</div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {a.categoria ? (
+                      <span className={clsx('text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded border', c.badge)}>
+                        {a.categoria}
+                      </span>
+                    ) : null}
+                    <span className="text-[10px] text-zinc-500 tabular-nums">
+                      {a.quantidade_base}{a.unidade === 'gramas' ? 'g' : ` ${a.unidade}`}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right text-xs">
+                <div className="text-right text-xs shrink-0">
                   <div className="text-brand font-bold tabular-nums">{a.calorias} kcal</div>
                   <div className="text-zinc-500 tabular-nums">P {a.proteinas} · C {a.carboidratos} · G {a.gorduras}</div>
                 </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </Card>
 
         {selected && (

@@ -1,0 +1,144 @@
+BIBLIOTECA BASE DE ALIMENTOS — Coach System
+============================================
+Total: 84 itens | Formato: nome | qtd_base unidade | kcal | P/C/G (g)
+
+===== PROTEÍNA ANIMAL (13) — por 100g salvo indicação =====
+- Peito de frango grelhado          100g  | 165 kcal | P31    C0    G3.6
+- Sobrecoxa de frango sem pele      100g  | 177 kcal | P26    C0    G7.4
+- Patinho moído cozido              100g  | 219 kcal | P28    C0    G11
+- Coxão duro grelhado               100g  | 200 kcal | P30    C0    G8
+- Alcatra grelhada                  100g  | 215 kcal | P31    C0    G9
+- Filé mignon grelhado              100g  | 220 kcal | P32    C0    G9
+- Tilápia grelhada                  100g  | 128 kcal | P26    C0    G2.7
+- Salmão grelhado                   100g  | 208 kcal | P22    C0    G13
+- Atum em água (lata)               100g  | 116 kcal | P26    C0    G1
+- Sardinha em água                  100g  | 130 kcal | P22    C0    G4
+- Camarão cozido                    100g  |  99 kcal | P24    C0.2  G0.3
+- Ovo inteiro                       1 un  |  70 kcal | P6     C0.4  G5
+- Clara de ovo                      1 un  |  17 kcal | P3.6   C0.2  G0.06
+
+===== LATICÍNIOS (7) — por 100g/100ml =====
+- Queijo cottage                    100g  |  98 kcal | P11    C3.4  G4.3
+- Iogurte natural desnatado         100g  |  56 kcal | P5.8   C8    G0.2
+- Iogurte grego natural             100g  |  97 kcal | P9     C4    G5
+- Leite desnatado                   100ml |  35 kcal | P3.4   C5    G0.1
+- Leite integral                    100ml |  61 kcal | P3.2   C4.8  G3.3
+- Queijo minas frescal              100g  | 264 kcal | P17    C3    G20
+- Ricota                            100g  | 174 kcal | P11    C3    G13
+
+===== CARBOIDRATOS (16) — por 100g =====
+- Arroz branco cozido               100g  | 128 kcal | P2.5   C28   G0.2
+- Arroz integral cozido             100g  | 124 kcal | P2.6   C26   G1
+- Batata doce cozida                100g  |  86 kcal | P1.6   C20   G0.1
+- Batata inglesa cozida             100g  |  87 kcal | P1.9   C20   G0.1
+- Mandioca cozida                   100g  | 125 kcal | P0.6   C30   G0.3
+- Inhame cozido                     100g  |  97 kcal | P2.1   C23   G0.2
+- Mandioquinha cozida               100g  |  80 kcal | P1.5   C18   G0.2
+- Aveia em flocos                   100g  | 389 kcal | P17    C66   G7
+- Pão integral                      100g  | 253 kcal | P9     C43   G4
+- Pão francês                       100g  | 300 kcal | P8     C58   G3
+- Macarrão integral cozido          100g  | 124 kcal | P5     C25   G0.7
+- Tapioca                           100g  | 240 kcal | P0.4   C60   G0.1
+- Cuscuz de milho cozido            100g  | 113 kcal | P2.5   C23   G0.7
+- Quinoa cozida                     100g  | 120 kcal | P4.4   C21   G1.9
+- Granola sem açúcar                100g  | 471 kcal | P10    C64   G18
+- Mel                               100g  | 304 kcal | P0.3   C82   G0
+
+===== FRUTAS (11) — por 100g =====
+- Banana prata                      100g  |  89 kcal | P1.1   C23   G0.3
+- Maçã                              100g  |  56 kcal | P0.3   C15   G0.2
+- Mamão papaya                      100g  |  40 kcal | P0.5   C10   G0.1
+- Morango                           100g  |  30 kcal | P0.9   C7    G0.3
+- Abacaxi                           100g  |  48 kcal | P0.9   C13   G0.1
+- Manga                             100g  |  64 kcal | P0.4   C17   G0.2
+- Melancia                          100g  |  33 kcal | P0.9   C8    G0.2
+- Uva                               100g  |  53 kcal | P0.7   C14   G0.2
+- Pera                              100g  |  53 kcal | P0.7   C14   G0.3
+- Laranja                           100g  |  37 kcal | P1     C9    G0.1
+- Kiwi                              100g  |  61 kcal | P1.1   C15   G0.5
+
+===== GORDURAS BOAS (12) — por 100g/100ml =====
+- Abacate                           100g  | 160 kcal | P2     C9    G15
+- Azeite de oliva extra virgem      100ml | 884 kcal | P0     C0    G100
+- Óleo de coco                      100ml | 884 kcal | P0     C0    G100
+- Manteiga ghee                     100g  | 900 kcal | P0     C0    G100
+- Pasta de amendoim integral        100g  | 582 kcal | P26    C21   G49
+- Castanha do Pará                  100g  | 656 kcal | P14    C12   G66
+- Castanha de caju                  100g  | 553 kcal | P18    C30   G44
+- Amêndoa                           100g  | 581 kcal | P21    C22   G50
+- Nozes                             100g  | 654 kcal | P15    C14   G65
+- Coco ralado seco                  100g  | 660 kcal | P7     C24   G60
+- Linhaça (semente)                 100g  | 534 kcal | P18    C29   G42
+- Chia (semente)                    100g  | 486 kcal | P17    C42   G31
+
+===== VEGETAIS / LEGUMES (10) — por 100g =====
+- Brócolis cozido                   100g  |  25 kcal | P2.1   C4    G0.3
+- Couve refogada                    100g  |  90 kcal | P3     C4    G7
+- Espinafre cozido                  100g  |  23 kcal | P2.9   C3.6  G0.4
+- Alface                            100g  |  11 kcal | P1.4   C1.7  G0.2
+- Tomate                            100g  |  15 kcal | P1.1   C3.1  G0.2
+- Pepino                            100g  |  10 kcal | P0.9   C2    G0.1
+- Cenoura crua                      100g  |  34 kcal | P1.3   C7.7  G0.2
+- Abobrinha cozida                  100g  |  15 kcal | P1     C2.9  G0.4
+- Vagem cozida                      100g  |  23 kcal | P1.6   C4.8  G0.2
+- Beterraba cozida                  100g  |  32 kcal | P1.3   C7    G0.1
+
+===== LEGUMINOSAS / PROTEÍNA VEGETAL (6) — por 100g =====
+- Feijão preto cozido               100g  |  77 kcal | P4.5   C14    G0.5
+- Feijão carioca cozido             100g  |  76 kcal | P4.8   C13.6  G0.5
+- Lentilha cozida                   100g  |  93 kcal | P6.3   C16.3  G0.5
+- Grão de bico cozido               100g  | 121 kcal | P7.1   C21    G2
+- Tofu firme                        100g  | 144 kcal | P17    C2.8   G8.7
+- Edamame cozido                    100g  | 122 kcal | P11    C10    G5
+
+===== SUPLEMENTOS (9) — por 1 scoop padrão =====
+- Whey protein concentrado          1 scoop | 120 kcal | P24   C3     G1.5
+- Whey protein isolado              1 scoop | 110 kcal | P27   C1     G0.5
+- Albumina                          1 scoop |  56 kcal | P12   C1     G0.2
+- Caseína                           1 scoop | 120 kcal | P24   C3     G1
+- Creatina monohidratada            1 scoop |   0 kcal | P0    C0     G0
+- Maltodextrina                     1 scoop | 114 kcal | P0    C28.5  G0
+- Dextrose                          1 scoop | 116 kcal | P0    C29    G0
+- BCAA em pó                        1 scoop |  20 kcal | P5    C0     G0
+- Hipercalórico                     1 scoop | 195 kcal | P12   C35    G1
+
+
+============================================
+FONTES E VALIDADE DOS DADOS
+============================================
+
+CATEGORIA              | FONTE PRIMÁRIA                       | CONFIABILIDADE
+-----------------------|--------------------------------------|----------------
+Proteína animal        | TACO 4ª ed. (Unicamp/NEPA, 2011)     | ALTA
+Laticínios             | TACO 4ª ed.                          | ALTA
+Carboidratos           | TACO 4ª ed.                          | ALTA
+Frutas                 | TACO 4ª ed. + USDA FoodData Central  | ALTA
+Vegetais               | TACO 4ª ed.                          | ALTA
+Leguminosas            | TACO 4ª ed.                          | ALTA
+Gorduras boas/nozes    | TACO 4ª ed. + USDA                   | ALTA
+Suplementos            | Rótulos médios de mercado (BR)       | MÉDIA — VER OBS
+
+RESSALVAS:
+
+1. TACO (Tabela Brasileira de Composição de Alimentos, NEPA/Unicamp): referência
+   oficial brasileira, usada por nutricionistas, ANVISA e SUS. Os valores aqui
+   estão arredondados (uma a duas casas decimais) — discrepâncias de ±5% em
+   relação à tabela original são esperadas e aceitáveis para uso clínico/coaching.
+
+2. Suplementos: valores são MÉDIA de marcas grandes (Growth, Integralmédica,
+   Max Titanium, Black Skull). Marcas específicas variam em ±15%. Em prescrição
+   estrita, o ideal é o aluno informar a marca e atualizar o registro.
+
+3. "Scoop padrão" para suplementos: convenção interna = 30g para whey/caseína,
+   25g para hipercalórico, 5g para creatina/BCAA. Se o rótulo do aluno usar
+   medidas diferentes, recalcular.
+
+4. Alimentos "grelhados/cozidos" usam valores pós-preparo (com perda de água),
+   alinhados com TACO. Não confundir com peso cru.
+
+5. NÃO substitui prescrição nutricional profissional. É uma biblioteca base para
+   o coach montar planos — alunos com condições clínicas específicas (diabetes,
+   renal, etc.) exigem revisão por nutricionista.
+
+CONCLUSÃO: A base é VÁLIDA e CONFIÁVEL para uso em coaching fitness/hipertrofia
+generalista. Para nutrição clínica especializada, exige curadoria adicional.

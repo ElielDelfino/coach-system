@@ -13,6 +13,7 @@ const logger = require('./src/config/logger');
 
 const migrate = require('./src/config/migrate');
 const seed = require('./src/config/seed');
+const seedAlimentos = require('./src/config/seedAlimentos');
 const auth = require('./src/middlewares/auth');
 const authorize = require('./src/middlewares/authorize');
 
@@ -87,6 +88,7 @@ app.use((err, req, res, _next) => {
 async function start() {
   await migrate();
   await seed();
+  await seedAlimentos();
   app.listen(PORT, () => logger.info({ port: PORT }, 'server running'));
 }
 

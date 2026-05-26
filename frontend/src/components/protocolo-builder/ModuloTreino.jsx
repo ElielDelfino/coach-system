@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import api from '../../services/api';
+import { GRUPOS_MUSCULARES, grupoColors } from '../../lib/gruposMusculares';
 import { useToast, errorMessage } from '../ui/Toast';
 import { Card } from '../ui/Card';
 import Button from '../ui/Button';
@@ -567,6 +568,7 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
   const toast = useToast();
   const [tipo, setTipo] = useState('exercicio');
   const [busca, setBusca] = useState('');
+  const [grupo, setGrupo] = useState('');
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
   const [params, setParams] = useState({ series: 4, repeticoes: '8-12', descanso_seg: 60, grupo_superset: '', observacao: '' });
@@ -576,7 +578,7 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
   useEffect(() => {
     if (!open) return;
     ordemRef.current = proximoOrdem;
-    setBusca(''); setResults([]); setSelected(null); setTipo('exercicio');
+    setBusca(''); setGrupo(''); setResults([]); setSelected(null); setTipo('exercicio');
     setParams({ series: 4, repeticoes: '8-12', descanso_seg: 60, grupo_superset: '', observacao: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -586,13 +588,15 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
     const t = setTimeout(async () => {
       try {
         const endpoint = tipo === 'exercicio' ? '/admin/exercicios' : '/admin/cardio';
-        const param = tipo === 'exercicio' ? { busca: busca || undefined } : { tipo: busca || undefined };
+        const param = tipo === 'exercicio'
+          ? { busca: busca || undefined, grupo_muscular: grupo || undefined }
+          : { tipo: busca || undefined };
         const res = await api.get(endpoint, { params: param });
         setResults(res.data.data || []);
       } catch (err) { toast.error(errorMessage(err)); }
     }, 250);
     return () => clearTimeout(t);
-  }, [open, tipo, busca, toast]);
+  }, [open, tipo, busca, grupo, toast]);
 
   function escolher(item) {
     setSelected(item);
@@ -658,28 +662,69 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
           ))}
         </div>
 
-        <Input placeholder={tipo === 'exercicio' ? 'Buscar exercício…' : 'Buscar cardio (tipo)…'}
-          value={busca} onChange={(e) => setBusca(e.target.value)} autoFocus />
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input placeholder={tipo === 'exercicio' ? 'Buscar exercício…' : 'Buscar cardio (tipo)…'}
+            value={busca} onChange={(e) => setBusca(e.target.value)} autoFocus className="flex-1" />
+          {tipo === 'exercicio' && (
+            <select
+              value={grupo}
+              onChange={(e) => setGrupo(e.target.value)}
+              className="sm:w-52 bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            >
+              <option value="">Todos os grupos</option>
+              {GRUPOS_MUSCULARES.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          )}
+        </div>
 
-        <Card className="max-h-56 overflow-y-auto">
+        <Card className="max-h-72 overflow-y-auto">
           {results.length === 0 && <div className="text-center text-zinc-500 py-8 text-sm">Nenhum resultado.</div>}
-          {results.map((r) => (
+          {results.map((r) => {
+            const gc = tipo === 'exercicio' ? grupoColors(r.grupo_muscular) : null;
+            return (
             <button
               key={r.id}
               onClick={() => escolher(r)}
               className={clsx(
-                'w-full text-left px-4 py-2.5 text-sm border-b border-surface-border transition-colors',
+                'w-full text-left px-3 py-2.5 text-sm border-b border-surface-border transition-colors flex items-center gap-3',
                 selected?.id === r.id ? 'bg-brand/10 border-l-2 border-l-brand' : 'hover:bg-surface-elevated'
               )}
             >
-              <div className="font-semibold text-white">{r.nome || r.tipo}</div>
-              <div className="text-xs text-zinc-500">
-                {tipo === 'exercicio'
-                  ? `${r.grupo_muscular} · ${r.nivel || '—'}`
-                  : `${r.intensidade || '—'} · ${r.duracao_min || '—'} min`}
+              {tipo === 'exercicio' && (
+                r.thumbnail_url ? (
+                  <img
+                    src={r.thumbnail_url}
+                    alt={r.nome}
+                    className="w-12 h-12 rounded-lg object-cover bg-surface-elevated shrink-0"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-surface-elevated border border-surface-border shrink-0 flex items-center justify-center">
+                    <span className={clsx('w-2.5 h-2.5 rounded-full', gc?.dot || 'bg-zinc-600')} />
+                  </div>
+                )
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-white truncate">{r.nome || r.tipo}</div>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {tipo === 'exercicio' ? (
+                    <>
+                      {r.grupo_muscular && (
+                        <span className={clsx('text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded border', gc.badge)}>
+                          {r.grupo_muscular}
+                        </span>
+                      )}
+                      {r.nivel && <span className="text-[10px] text-zinc-500 uppercase tracking-widest">{r.nivel}</span>}
+                      {r.equipamento && <span className="text-[10px] text-zinc-600">· {r.equipamento}</span>}
+                    </>
+                  ) : (
+                    <span className="text-xs text-zinc-500">{r.intensidade || '—'} · {r.duracao_min || '—'} min</span>
+                  )}
+                </div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </Card>
 
         {selected && tipo === 'exercicio' && (

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../services/api';
+import { CATEGORIAS_ALIMENTOS, categoriaColors } from '../../lib/categoriasAlimentos';
 import { useToast, errorMessage } from '../../components/ui/Toast';
 import { Card } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -9,6 +10,7 @@ import ImageUpload from '../../components/ImageUpload';
 import { Field } from './Alunos';
 import { SkeletonTabela } from '../../components/ui/Skeleton';
 import EmptyState from '../../components/ui/EmptyState';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 
 const UNIDADES = [
   { v: 'gramas', l: 'Gramas (g)' },
@@ -19,20 +21,29 @@ const UNIDADES = [
   { v: 'scoop', l: 'Scoop' },
 ];
 
+const CATEGORIAS = CATEGORIAS_ALIMENTOS;
+
 export default function Alimentos() {
   const toast = useToast();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
   const [categoria, setCategoria] = useState('');
+  const [mostrarInativos, setMostrarInativos] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [confirmandoDesativar, setConfirmandoDesativar] = useState(null);
+  const [salvandoStatus, setSalvandoStatus] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get('/admin/alimentos', {
-        params: { busca: busca || undefined, categoria: categoria || undefined },
+        params: {
+          busca: busca || undefined,
+          categoria: categoria || undefined,
+          ativo: mostrarInativos ? 'false' : undefined,
+        },
       });
       setData(res.data.data || []);
     } catch (err) {
@@ -40,19 +51,32 @@ export default function Alimentos() {
     } finally {
       setLoading(false);
     }
-  }, [busca, categoria, toast]);
+  }, [busca, categoria, mostrarInativos, toast]);
 
   useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
   }, [load]);
 
-  async function toggleAtivo(al) {
+  async function aplicarStatus(al) {
     try {
+      setSalvandoStatus(true);
       await api.patch(`/admin/alimentos/${al.id}/${al.ativo ? 'desativar' : 'ativar'}`);
+      toast.success(al.ativo ? 'Alimento desativado.' : 'Alimento reativado.');
+      setConfirmandoDesativar(null);
       load();
     } catch (err) {
       toast.error(errorMessage(err));
+    } finally {
+      setSalvandoStatus(false);
+    }
+  }
+
+  function handleStatusClick(al) {
+    if (al.ativo) {
+      setConfirmandoDesativar(al);
+    } else {
+      aplicarStatus(al);
     }
   }
 
@@ -68,7 +92,25 @@ export default function Alimentos() {
 
       <Card className="p-4 flex flex-col md:flex-row gap-3">
         <div className="flex-1"><Input placeholder="Buscar por nome…" value={busca} onChange={(e) => setBusca(e.target.value)} /></div>
-        <Input placeholder="Categoria" value={categoria} onChange={(e) => setCategoria(e.target.value)} className="md:w-48" />
+        <select
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+          className="md:w-56 bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+        >
+          <option value="">Todas as categorias</option>
+          {CATEGORIAS.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        <label className="flex items-center gap-2 text-xs uppercase tracking-widest text-zinc-400 cursor-pointer select-none shrink-0">
+          <input
+            type="checkbox"
+            checked={mostrarInativos}
+            onChange={(e) => setMostrarInativos(e.target.checked)}
+            className="accent-brand w-4 h-4"
+          />
+          Mostrar inativos
+        </label>
       </Card>
 
       {loading ? (
@@ -120,7 +162,13 @@ export default function Alimentos() {
                       )}
                     </td>
                     <td className="px-3 py-2.5 font-semibold text-white">{al.nome}</td>
-                    <td className="px-5 py-2.5 text-zinc-500">{al.categoria || '—'}</td>
+                    <td className="px-5 py-2.5">
+                      {al.categoria ? (
+                        <span className={`inline-block text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border ${categoriaColors(al.categoria).badge}`}>
+                          {al.categoria}
+                        </span>
+                      ) : <span className="text-zinc-600">—</span>}
+                    </td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-zinc-400">{al.quantidade_base} {al.unidade}</td>
                     <td className="px-5 py-2.5 text-right tabular-nums font-bold text-brand">{al.calorias}</td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-sky-400">{al.proteinas}</td>
@@ -128,7 +176,7 @@ export default function Alimentos() {
                     <td className="px-5 py-2.5 text-right tabular-nums text-rose-400">{al.gorduras}</td>
                     <td className="px-5 py-2.5 text-center">
                       <button
-                        onClick={(e) => { e.stopPropagation(); toggleAtivo(al); }}
+                        onClick={(e) => { e.stopPropagation(); handleStatusClick(al); }}
                         className={
                           'text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border ' +
                           (al.ativo
@@ -169,7 +217,7 @@ export default function Alimentos() {
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-bold text-white text-sm truncate">{al.nome}</h3>
                     <button
-                      onClick={(e) => { e.stopPropagation(); toggleAtivo(al); }}
+                      onClick={(e) => { e.stopPropagation(); handleStatusClick(al); }}
                       className={
                         'shrink-0 text-[9px] uppercase tracking-widest font-bold px-2 py-0.5 rounded border ' +
                         (al.ativo
@@ -180,7 +228,11 @@ export default function Alimentos() {
                       {al.ativo ? 'Ativo' : 'Inativo'}
                     </button>
                   </div>
-                  <p className="text-xs text-zinc-500 truncate">{al.categoria || '—'}</p>
+                  {al.categoria && (
+                    <span className={`inline-block mt-0.5 text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded border ${categoriaColors(al.categoria).badge}`}>
+                      {al.categoria}
+                    </span>
+                  )}
                   <p className="text-[10px] text-zinc-600 tabular-nums mt-0.5">{al.quantidade_base} {al.unidade}</p>
                 </div>
               </div>
@@ -201,6 +253,21 @@ export default function Alimentos() {
         onClose={() => { setOpenCreate(false); setEditing(null); }}
         alId={editing}
         onSaved={() => { setOpenCreate(false); setEditing(null); load(); }}
+      />
+
+      <ConfirmModal
+        aberto={!!confirmandoDesativar}
+        titulo="Desativar alimento?"
+        descricao={
+          confirmandoDesativar
+            ? `"${confirmandoDesativar.nome}" será ocultado das buscas e dos planos novos. Itens já vinculados a refeições não serão afetados. Você pode reativá-lo a qualquer momento marcando "Mostrar inativos".`
+            : ''
+        }
+        textoBotao="Sim, desativar"
+        variante="warning"
+        carregando={salvandoStatus}
+        onConfirmar={() => confirmandoDesativar && aplicarStatus(confirmandoDesativar)}
+        onCancelar={() => setConfirmandoDesativar(null)}
       />
     </div>
   );
@@ -297,7 +364,16 @@ function AlimentoModal({ open, onClose, alId, onSaved }) {
       <div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Nome *"><Input value={form.nome || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, nome: v })); }} /></Field>
-          <Field label="Categoria"><Input value={form.categoria || ''} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, categoria: v })); }} /></Field>
+          <Field label="Categoria">
+            <select
+              value={form.categoria || ''}
+              onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, categoria: v })); }}
+              className="w-full bg-surface-input border border-surface-border text-white rounded-md px-3 py-2 text-base md:text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            >
+              <option value="">Selecione…</option>
+              {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Quantidade base">
