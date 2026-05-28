@@ -27,7 +27,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
       onClick={onClose}
     >
       <div
-        className={`relative w-full bg-surface-card border-t md:border border-surface-border rounded-t-2xl md:rounded-lg shadow-2xl max-h-[100dvh] md:max-h-[90vh] flex flex-col ${sizes[size]}`}
+        className={`relative w-full bg-surface-card border-t md:border border-white/10 rounded-t-2xl md:rounded-lg shadow-2xl max-h-[100dvh] md:max-h-[90vh] flex flex-col ${sizes[size]}`}
         onClick={(e) => e.stopPropagation()}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
@@ -37,7 +37,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         </div>
 
         {title && (
-          <div className="px-5 py-4 border-b border-surface-border flex items-center justify-between shrink-0">
+          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between shrink-0">
             <h2 className="text-page-title text-base">{title}</h2>
             <button
               onClick={onClose}
@@ -50,7 +50,7 @@ export default function Modal({ open, onClose, title, children, footer, size = '
         )}
         <div className="px-5 py-4 overflow-y-auto flex-1 min-h-0">{children}</div>
         {footer && (
-          <div className="px-5 py-3 border-t border-surface-border flex items-center justify-end gap-2 flex-wrap bg-surface-card shrink-0">
+          <div className="px-5 py-3 border-t border-white/10 flex items-center justify-end gap-2 flex-wrap bg-surface-card shrink-0">
             {footer}
           </div>
         )}

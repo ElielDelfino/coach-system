@@ -34,8 +34,8 @@ export default function AlunoLayout() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto
-        bg-surface-card border-t border-surface-border z-50">
-        <div className="flex items-center justify-around px-4 py-2">
+        bg-surface-card/80 backdrop-blur-xl border-t border-white/10 z-50">
+        <div className="flex items-center justify-around px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {ITENS.map((item) => {
             const ativo = paginaAtiva === item.id;
             return (
@@ -45,13 +45,13 @@ export default function AlunoLayout() {
                 className="flex flex-col items-center gap-1 py-2 px-4 min-w-[60px]"
               >
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors
-                    ${ativo ? 'bg-brand' : 'bg-transparent'}`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all
+                    ${ativo ? 'bg-brand glow-magenta-sm' : 'bg-transparent'}`}
                 >
                   <span className="text-lg">{item.icone}</span>
                 </div>
                 <span
-                  className={`text-xs font-bold transition-colors
+                  className={`text-[10px] font-display font-semibold uppercase tracking-wider transition-colors
                     ${ativo ? 'text-brand' : 'text-zinc-500'}`}
                 >
                   {item.label}

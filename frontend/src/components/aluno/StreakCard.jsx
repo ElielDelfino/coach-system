@@ -15,8 +15,8 @@ export default function StreakCard({ streak }) {
       animate={{ opacity: 1, y: 0 }}
       className={`relative overflow-hidden rounded-2xl px-4 py-3 border
         ${ativo
-          ? 'bg-gradient-to-br from-orange-950/40 via-red-950/30 to-zinc-950 border-brand/30'
-          : 'bg-surface-elevated border-surface-border'}`}
+          ? 'bg-gradient-to-br from-brand/20 via-brand-dark/15 to-surface-card border-brand/35 shadow-glow-magenta-sm'
+          : 'bg-surface-elevated border-white/10'}`}
     >
       {ativo && (
         <motion.div
@@ -30,14 +30,14 @@ export default function StreakCard({ streak }) {
         </motion.div>
       )}
       <div className="relative">
-        <p className="text-[10px] uppercase tracking-widest text-zinc-500">
+        <p className="text-[10px] font-display font-semibold uppercase tracking-widest text-zinc-500">
           {ativo ? 'Em sequência' : 'Sem sequência ativa'}
         </p>
         <div className="flex items-baseline gap-2 mt-0.5">
-          <span className={`text-3xl font-black tabular-nums ${ativo ? 'text-brand' : 'text-zinc-400'}`}>
+          <span className={`text-3xl font-mono font-bold tabular-nums ${ativo ? 'text-brand text-glow-magenta' : 'text-zinc-400'}`}>
             {atual}
           </span>
-          <span className={`text-xs font-bold ${ativo ? 'text-orange-300' : 'text-zinc-500'}`}>
+          <span className={`text-xs font-bold ${ativo ? 'text-brand-light' : 'text-zinc-500'}`}>
             {plural(atual, 'dia', 'dias')}
           </span>
         </div>

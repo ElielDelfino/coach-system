@@ -356,7 +356,7 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
               onClick={() => setTipoVideo('youtube')}
               className={
                 'text-xs px-3 py-1 rounded font-bold ' +
-                (tipoVideo === 'youtube' ? 'bg-brand text-white' : 'bg-surface-elevated text-zinc-400')
+                (tipoVideo === 'youtube' ? 'bg-brand text-[#0A0A0E]' : 'bg-surface-elevated text-zinc-400')
               }
             >
               YouTube
@@ -366,7 +366,7 @@ function ExercicioModal({ open, onClose, exId, onSaved }) {
               onClick={() => setTipoVideo('s3')}
               className={
                 'text-xs px-3 py-1 rounded font-bold ' +
-                (tipoVideo === 's3' ? 'bg-brand text-white' : 'bg-surface-elevated text-zinc-400')
+                (tipoVideo === 's3' ? 'bg-brand text-[#0A0A0E]' : 'bg-surface-elevated text-zinc-400')
               }
             >
               Upload de arquivo

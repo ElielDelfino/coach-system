@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 const FATORES = [
   { id: 'treinos',   label: 'Treinos',   peso: 45, cor: 'bg-brand',      cor_text: 'text-brand',      icone: '🏋' },
-  { id: 'refeicoes', label: 'Refeições', peso: 30, cor: 'bg-blue-500',   cor_text: 'text-blue-400',   icone: '🍽' },
+  { id: 'refeicoes', label: 'Refeições', peso: 30, cor: 'bg-accent',   cor_text: 'text-accent',   icone: '🍽' },
   { id: 'medidas',   label: 'Medidas',   peso: 12.5, cor: 'bg-green-500',cor_text: 'text-green-400',  icone: '📏' },
   { id: 'fotos',     label: 'Fotos',     peso: 12.5, cor: 'bg-purple-500',cor_text: 'text-purple-400',icone: '📷' },
 ];

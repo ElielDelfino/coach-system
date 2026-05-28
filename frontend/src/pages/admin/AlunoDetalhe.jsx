@@ -146,7 +146,7 @@ function NavTabs({ tab, setTab, alunoId }) {
             >
               {t.label}
               {badge && (
-                <span className="bg-brand text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none tabular-nums">
+                <span className="bg-brand text-[#0A0A0E] text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none tabular-nums">
                   {badge}
                 </span>
               )}

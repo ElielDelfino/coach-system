@@ -223,7 +223,7 @@ export default function TreinoExecucao() {
         <p className="text-zinc-400 text-sm mb-4">Treino não encontrado.</p>
         <button
           onClick={() => navigate('/aluno/treino')}
-          className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full uppercase tracking-wide"
+          className="bg-brand text-[#0A0A0E] text-xs font-black px-4 py-2 rounded-full uppercase tracking-wide"
         >
           ← Voltar
         </button>
@@ -266,7 +266,7 @@ export default function TreinoExecucao() {
 
         <button
           onClick={compartilhar}
-          className="w-full bg-brand text-white font-black text-base py-4
+          className="w-full bg-brand text-[#0A0A0E] font-black text-base py-4
             rounded-2xl mb-3 hover:bg-brand-dark active:scale-95"
         >
           📤 Compartilhar conquista
@@ -303,7 +303,7 @@ export default function TreinoExecucao() {
       <div className="flex items-center justify-between px-5 pt-8 pb-4">
         <button
           onClick={() => navigate('/aluno/treino')}
-          className="flex items-center gap-2 bg-brand text-white
+          className="flex items-center gap-2 bg-brand text-[#0A0A0E]
             text-xs font-black px-4 py-2 rounded-full hover:bg-brand-dark transition-colors"
         >
           ← Voltar
@@ -370,7 +370,7 @@ export default function TreinoExecucao() {
                 onClick={() => setSerieAtual(i)}
                 className={`px-4 py-2 rounded-full text-sm font-bold transition-colors
                   ${serieAtual === i
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand text-[#0A0A0E]'
                     : 'border border-brand text-brand'
                   }`}
               >
@@ -481,7 +481,7 @@ export default function TreinoExecucao() {
             transition-all active:scale-95
             ${exConcluido
               ? 'bg-green-900 text-green-400 border border-green-800'
-              : 'bg-brand text-white hover:bg-brand-dark'
+              : 'bg-brand text-[#0A0A0E] hover:bg-brand-dark'
             }`}
         >
           {exConcluido ? '✓ Exercício concluído' : 'Concluir exercício'}

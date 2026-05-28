@@ -5,7 +5,7 @@ export function Card({ className = '', elevated = false, children, ...props }) {
     <div
       className={clsx(
         elevated ? 'bg-surface-elevated' : 'bg-surface-card',
-        'border border-surface-border rounded-lg',
+        'bg-grad-surface border border-white/[0.07] rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.55)]',
         className
       )}
       {...props}
@@ -17,7 +17,7 @@ export function Card({ className = '', elevated = false, children, ...props }) {
 
 export function CardHeader({ className = '', children, ...props }) {
   return (
-    <div className={clsx('px-5 py-4 border-b border-surface-border', className)} {...props}>
+    <div className={clsx('px-5 py-4 border-b border-white/[0.07]', className)} {...props}>
       {children}
     </div>
   );
@@ -33,12 +33,17 @@ export function CardBody({ className = '', children, ...props }) {
 
 export function MetricCard({ label, value, hint, accent = false }) {
   return (
-    <Card className="px-5 py-4">
+    <Card className={clsx('px-5 py-4', accent && 'border-brand/35 shadow-glow-magenta-sm')}>
       <div className="text-section-label">{label}</div>
-      <div className={clsx('text-3xl font-black mt-1', accent ? 'text-brand' : 'text-white')}>
+      <div
+        className={clsx(
+          'text-3xl font-mono font-bold tabular-nums mt-2',
+          accent ? 'text-brand text-glow-magenta' : 'text-white'
+        )}
+      >
         {value}
       </div>
-      {hint && <div className="text-xs text-zinc-500 mt-1">{hint}</div>}
+      {hint && <div className="text-xs font-mono text-zinc-500 mt-1.5">{hint}</div>}
     </Card>
   );
 }

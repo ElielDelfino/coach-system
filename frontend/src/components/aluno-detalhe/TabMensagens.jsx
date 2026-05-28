@@ -52,7 +52,7 @@ function CardFeedback({ feedback, onMarcarLido }) {
               Semana de {formatSemana(feedback.semana_inicio)}
             </p>
             {naoLido && (
-              <span className="text-[9px] font-black bg-brand text-white px-1.5 py-0.5 rounded uppercase tracking-wider">
+              <span className="text-[9px] font-black bg-brand text-[#0A0A0E] px-1.5 py-0.5 rounded uppercase tracking-wider">
                 Nova
               </span>
             )}
@@ -139,7 +139,7 @@ function CardFeedback({ feedback, onMarcarLido }) {
                 <button
                   type="button"
                   onClick={marcar}
-                  className="w-full bg-brand text-white font-black text-xs uppercase tracking-widest
+                  className="w-full bg-brand text-[#0A0A0E] font-black text-xs uppercase tracking-widest
                     py-3 rounded-xl hover:bg-brand-dark transition-colors"
                 >
                   ✓ Marcar como lido

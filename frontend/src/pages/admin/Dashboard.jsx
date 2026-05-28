@@ -156,7 +156,7 @@ export default function Dashboard() {
                       type="monotone"
                       name="Peso médio"
                       dataKey="media_peso_kg"
-                      stroke="#f97316"
+                      stroke="#FF1E73"
                       strokeWidth={2}
                       dot={false}
                       activeDot={{ r: 4 }}
@@ -182,8 +182,8 @@ export default function Dashboard() {
                       type="monotone"
                       name="%BF médio"
                       dataKey="media_percentual_gordura"
-                      stroke="#f97316"
-                      fill="#f97316"
+                      stroke="#FF1E73"
+                      fill="#FF1E73"
                       fillOpacity={0.1}
                       strokeWidth={2}
                     />

@@ -22,7 +22,7 @@ export default function Navbar() {
   return (
     <>
       {/* Topbar mobile com hamburguer */}
-      <div className="md:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-surface-card border-b border-surface-border">
+      <div className="md:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-surface-card/80 backdrop-blur-xl border-b border-white/10">
         <button
           type="button"
           onClick={abrirMenu}
@@ -35,11 +35,7 @@ export default function Navbar() {
             <div className="w-5 h-0.5 bg-current" />
           </div>
         </button>
-        <div className="flex items-center gap-2">
-          <span className="text-base font-black tracking-tight text-white">COACH</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-brand mt-1" />
-          <span className="text-base font-black tracking-tight text-white">SYS</span>
-        </div>
+        <img src="/logo-pulse.svg" alt="Coach System" className="h-6" />
       </div>
 
       {/* Overlay escuro quando menu aberto (mobile) */}
@@ -53,7 +49,7 @@ export default function Navbar() {
       {/* Sidebar — drawer no mobile, fixa no desktop */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 w-60 bg-surface-card border-r border-surface-border flex flex-col transition-transform duration-200',
+          'fixed inset-y-0 left-0 z-40 w-60 bg-surface-base border-r border-white/10 flex flex-col transition-transform duration-200',
           'md:sticky md:top-0 md:h-screen md:translate-x-0 md:shrink-0',
           menuAberto ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         )}
@@ -67,13 +63,9 @@ export default function Navbar() {
           ✕
         </button>
 
-        <div className="px-5 py-6 border-b border-surface-border">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-black tracking-tight text-white">COACH</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-brand mt-1.5" />
-            <span className="text-lg font-black tracking-tight text-white">SYS</span>
-          </div>
-          <div className="text-[10px] uppercase tracking-widest text-zinc-600 mt-1">
+        <div className="px-5 py-6 border-b border-white/10">
+          <img src="/logo-pulse.svg" alt="Coach System" className="h-7" />
+          <div className="text-[10px] font-display uppercase tracking-widest text-zinc-600 mt-2">
             Painel administrativo
           </div>
         </div>
@@ -86,10 +78,10 @@ export default function Navbar() {
               onClick={fecharMenu}
               className={({ isActive }) =>
                 clsx(
-                  'flex items-center px-5 py-3 text-xs uppercase tracking-widest font-bold transition-colors min-h-[44px] md:min-h-0 md:py-2.5',
+                  'flex items-center px-5 py-3 text-xs font-display uppercase tracking-widest font-semibold transition-colors min-h-[44px] md:min-h-0 md:py-2.5',
                   isActive
-                    ? 'border-l-2 border-brand bg-surface-elevated text-white'
-                    : 'border-l-2 border-transparent text-zinc-500 hover:text-zinc-300'
+                    ? 'border-l-[3px] border-brand bg-surface-elevated text-white shadow-[inset_0_0_18px_rgba(255,30,115,0.12)]'
+                    : 'border-l-[3px] border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-surface-card'
                 )
               }
             >
@@ -98,8 +90,8 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <div className="px-5 py-4 border-t border-surface-border">
-          <div className="text-[10px] text-zinc-600 uppercase tracking-widest">Sessão</div>
+        <div className="px-5 py-4 border-t border-white/10">
+          <div className="text-[10px] font-display text-zinc-600 uppercase tracking-widest">Sessão</div>
           <div className="text-sm text-white truncate">{user?.email}</div>
           <button
             onClick={() => { fecharMenu(); void logout(); }}

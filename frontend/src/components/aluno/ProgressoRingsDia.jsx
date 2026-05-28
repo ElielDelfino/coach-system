@@ -54,26 +54,26 @@ export default function ProgressoRingsDia({ refeicoes, treinoConcluido, agua, me
   const pctTreino = treinoConcluido ? 100 : 0;
 
   return (
-    <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950
-      border border-surface-border rounded-2xl px-4 py-4 mb-4
+    <div className="bg-surface-card bg-grad-surface
+      border border-white/[0.07] rounded-2xl px-4 py-4 mb-4
       flex items-center justify-around gap-2">
       <Ring
         percent={pctRefeicoes}
-        color="#f97316"
+        color="#FF1E73"
         icon="🍽"
         label="Refeições"
         value={`${refeicoes.feitas}/${refeicoes.total}`}
       />
       <Ring
         percent={pctAgua}
-        color="#60a5fa"
+        color="#C2FF36"
         icon="💧"
         label="Água"
         value={`${Number(agua || 0).toFixed(1)}/${Number(metaAgua || 0).toFixed(1)}L`}
       />
       <Ring
         percent={pctTreino}
-        color="#22c55e"
+        color="#2BE07A"
         icon="🏋"
         label="Treino"
         value={treinoConcluido ? 'Feito' : 'Pendente'}

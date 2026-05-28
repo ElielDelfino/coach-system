@@ -5,9 +5,9 @@
 @layer base {
   html, body, #root {
     height: 100%;
-    background-color: #0a0a0a;
-    color: #ffffff;
-    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #07070B;
+    color: #F5F3F9;
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
   }
 
   *::-webkit-scrollbar {
@@ -15,33 +15,76 @@
     height: 8px;
   }
   *::-webkit-scrollbar-track {
-    background: #0a0a0a;
+    background: #07070B;
   }
   *::-webkit-scrollbar-thumb {
-    background: #1f1f1f;
+    background: #242431;
     border-radius: 4px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: #2a2a2a;
+    background: #FF1E73;
+  }
+
+  /* Headings adotam a fonte de impacto (Saira) em todo o app */
+  h1, h2, h3 {
+    font-family: 'Saira', 'Arial Narrow', sans-serif;
   }
 
   input:-webkit-autofill,
   input:-webkit-autofill:focus {
     transition: background-color 600000s 0s, color 600000s 0s;
-    -webkit-text-fill-color: #ffffff;
+    -webkit-text-fill-color: #F5F3F9;
+  }
+
+  ::selection {
+    background: rgba(255, 30, 115, 0.3);
+    color: #fff;
   }
 }
 
 @layer utilities {
+  /* Label assinatura: uppercase, tracking largo, fonte display */
   .text-section-label {
-    @apply text-xs uppercase tracking-widest text-zinc-500 font-semibold;
+    @apply text-xs uppercase tracking-widest text-zinc-500 font-display font-semibold;
   }
   .text-page-title {
-    @apply text-2xl font-black tracking-tight text-white;
+    @apply text-2xl font-display font-extrabold tracking-tight text-white;
   }
+  /* Métricas/dados em mono — "os números são heróis" */
   .text-metric {
-    @apply text-3xl font-black text-brand;
+    @apply text-3xl font-mono font-bold text-brand tabular-nums;
   }
+
+  /* Glow neon — usar com parcimônia (CTA, nav ativa, 1 métrica-chave por view) */
+  .glow-magenta {
+    box-shadow: 0 0 24px rgba(255, 30, 115, 0.55), 0 0 4px rgba(255, 30, 115, 0.8);
+  }
+  .glow-magenta-sm {
+    box-shadow: 0 0 12px rgba(255, 30, 115, 0.45);
+  }
+  .glow-lime {
+    box-shadow: 0 0 24px rgba(194, 255, 54, 0.5), 0 0 4px rgba(194, 255, 54, 0.7);
+  }
+  .glow-lime-sm {
+    box-shadow: 0 0 12px rgba(194, 255, 54, 0.4);
+  }
+  .text-glow-magenta {
+    text-shadow: 0 0 18px rgba(255, 30, 115, 0.7);
+  }
+  .text-glow-lime {
+    text-shadow: 0 0 18px rgba(194, 255, 54, 0.6);
+  }
+
+  /* Spotlight radial atrás de heros — "luz de palco" */
+  .bg-spot {
+    background-image: radial-gradient(
+      120% 90% at 50% -10%,
+      rgba(255, 30, 115, 0.18) 0%,
+      rgba(255, 30, 115, 0) 55%
+    );
+    background-repeat: no-repeat;
+  }
+
   .scrollbar-none {
     scrollbar-width: none;
   }

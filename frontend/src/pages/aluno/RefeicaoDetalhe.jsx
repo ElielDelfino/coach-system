@@ -86,7 +86,7 @@ export default function RefeicaoDetalhe() {
         <p className="text-zinc-400 text-sm mb-4">Refeição não encontrada.</p>
         <button
           onClick={() => navigate('/aluno/dieta')}
-          className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full uppercase tracking-wide"
+          className="bg-brand text-[#0A0A0E] text-xs font-black px-4 py-2 rounded-full uppercase tracking-wide"
         >
           ← Voltar
         </button>
@@ -101,7 +101,7 @@ export default function RefeicaoDetalhe() {
       <div className="px-5 pt-8 pb-4">
         <button
           onClick={() => navigate('/aluno/dieta')}
-          className="inline-flex items-center gap-2 bg-brand text-white
+          className="inline-flex items-center gap-2 bg-brand text-[#0A0A0E]
             text-xs font-black px-4 py-2 rounded-full mb-4 hover:bg-brand-dark transition-colors"
         >
           ← Voltar
@@ -146,7 +146,7 @@ export default function RefeicaoDetalhe() {
                     </p>
                   )}
                 </div>
-                <span className="bg-brand text-white text-xs font-black
+                <span className="bg-brand text-[#0A0A0E] text-xs font-black
                   px-3 py-1.5 rounded-full shrink-0">
                   {exibido.quantidade_g} g
                 </span>
@@ -186,7 +186,7 @@ export default function RefeicaoDetalhe() {
           {[
             { label: 'Kcal', valor: refeicao.total_kcal, cor: 'text-brand',        bg: 'bg-brand/10' },
             { label: 'Carb', valor: refeicao.total_carb, cor: 'text-yellow-400',   bg: 'bg-yellow-950/40' },
-            { label: 'Prot', valor: refeicao.total_prot, cor: 'text-blue-400',     bg: 'bg-blue-950/40' },
+            { label: 'Prot', valor: refeicao.total_prot, cor: 'text-accent',     bg: 'bg-accent/10' },
             { label: 'Gord', valor: refeicao.total_gord, cor: 'text-red-400',      bg: 'bg-red-950/40' },
           ].map((m) => (
             <div key={m.label} className={`${m.bg} rounded-xl py-2 text-center`}>

@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PULSE mark">
+  <defs>
+    <linearGradient id="markGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF1E73"></stop>
+      <stop offset="1" stop-color="#C70E55"></stop>
+    </linearGradient>
+    <filter id="markGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.2" result="b"></feGaussianBlur>
+      <feMerge><feMergeNode in="b"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
+    </filter>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="16" fill="#0C0C12" stroke="url(#markGrad)" stroke-width="2"></rect>
+  <g filter="url(#markGlow)">
+    <path d="M12 33 H22 L27 17 L37 47 L42 33 H52" stroke="#FF2D7C" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  </g>
+</svg>

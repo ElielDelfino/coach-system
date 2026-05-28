@@ -99,7 +99,7 @@ export default function Alunos() {
               className={
                 'px-3 py-1.5 rounded-md text-xs uppercase tracking-widest font-bold transition-colors whitespace-nowrap shrink-0 ' +
                 (filtroStatus === opt.v
-                  ? 'bg-brand text-white'
+                  ? 'bg-brand text-[#0A0A0E]'
                   : 'bg-surface-elevated text-zinc-400 hover:text-white border border-surface-border')
               }
             >

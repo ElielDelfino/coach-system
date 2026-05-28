@@ -44,7 +44,7 @@ function ImageUpload({ label, onUpload, preview, accept = 'image/*', maxMB = 15 
           <img src={preview} alt="preview" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <span className="absolute bottom-1.5 left-1.5 text-[10px] uppercase tracking-widest font-black
-            bg-brand text-white px-2 py-0.5 rounded-full">
+            bg-brand text-[#0A0A0E] px-2 py-0.5 rounded-full">
             Trocar
           </span>
         </div>

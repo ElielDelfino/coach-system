@@ -107,7 +107,7 @@ export default function ModuloAlimentar({ protocoloId }) {
               className={clsx(
                 'px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold transition-colors border whitespace-nowrap',
                 refAtivaId === r.id
-                  ? 'bg-brand text-white border-brand'
+                  ? 'bg-brand text-[#0A0A0E] border-brand'
                   : 'bg-surface-elevated text-zinc-400 border-surface-border hover:text-white'
               )}
             >
@@ -147,7 +147,7 @@ export default function ModuloAlimentar({ protocoloId }) {
       <button
         type="button"
         onClick={() => setResumoAberto(true)}
-        className="md:hidden fixed bottom-4 right-4 z-20 bg-brand text-white rounded-full px-4 py-3 text-xs font-black shadow-lg uppercase tracking-widest"
+        className="md:hidden fixed bottom-4 right-4 z-20 bg-brand text-[#0A0A0E] rounded-full px-4 py-3 text-xs font-black shadow-lg uppercase tracking-widest"
       >
         Resumo · {fmt(totalProto.kcal)} kcal
       </button>
@@ -310,7 +310,7 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
                   <td colSpan={2} className="px-3 py-3 text-section-label">TOTAL</td>
                   <td className="px-3 py-3"></td>
                   <td className="px-3 py-3 text-right text-xl font-black text-brand tabular-nums">{fmt(refeicao.total_kcal)}</td>
-                  <td className="px-3 py-3 text-right text-sky-400 tabular-nums">{fmt(refeicao.total_prot)}</td>
+                  <td className="px-3 py-3 text-right text-accent tabular-nums">{fmt(refeicao.total_prot)}</td>
                   <td className="px-3 py-3 text-right text-amber-400 tabular-nums">{fmt(refeicao.total_carb)}</td>
                   <td className="px-3 py-3 text-right text-rose-400 tabular-nums">{fmt(refeicao.total_gord)}</td>
                   <td></td>
@@ -343,7 +343,7 @@ function RefeicaoEditor({ refeicao, onChange, onDuplicate, onDelete }) {
                   <span className="text-[10px] uppercase tracking-widest text-zinc-500">kcal</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 mt-2 text-xs tabular-nums">
-                  <div className="text-sky-400">P {fmt(refeicao.total_prot)}</div>
+                  <div className="text-accent">P {fmt(refeicao.total_prot)}</div>
                   <div className="text-amber-400 text-center">C {fmt(refeicao.total_carb)}</div>
                   <div className="text-rose-400 text-right">G {fmt(refeicao.total_gord)}</div>
                 </div>
@@ -425,7 +425,7 @@ function ItemRow({ item, refeicaoId, onChange, onRemove }) {
           />
         </td>
         <td className="px-3 py-2 text-right font-bold text-brand tabular-nums">{fmt(item.kcal_calculado)}</td>
-        <td className="px-3 py-2 text-right text-sky-400 tabular-nums">{fmt(item.prot_calculado)}</td>
+        <td className="px-3 py-2 text-right text-accent tabular-nums">{fmt(item.prot_calculado)}</td>
         <td className="px-3 py-2 text-right text-amber-400 tabular-nums">{fmt(item.carb_calculado)}</td>
         <td className="px-3 py-2 text-right text-rose-400 tabular-nums">{fmt(item.gord_calculado)}</td>
         <td className="px-3 py-2 text-right">
@@ -523,7 +523,7 @@ function ItemCard({ item, refeicaoId, onChange, onRemove }) {
         </div>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] tabular-nums">
-        <span className="text-sky-400">P {fmt(item.prot_calculado)}</span>
+        <span className="text-accent">P {fmt(item.prot_calculado)}</span>
         <span className="text-amber-400 text-center">C {fmt(item.carb_calculado)}</span>
         <span className="text-rose-400 text-right">G {fmt(item.gord_calculado)}</span>
       </div>

@@ -58,7 +58,7 @@ export default function ProtocoloBuilder() {
                   className={clsx(
                     'text-[11px] uppercase tracking-widest px-3 py-2 rounded-lg whitespace-nowrap font-bold',
                     modulo === m.id
-                      ? 'bg-brand text-white'
+                      ? 'bg-brand text-[#0A0A0E]'
                       : enabled
                       ? 'text-zinc-400 hover:text-zinc-200'
                       : 'text-zinc-700 cursor-not-allowed'

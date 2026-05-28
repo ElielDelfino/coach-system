@@ -247,8 +247,8 @@ function TabPerfil({ perfil, protocoloAtivo, proximaPendente, onAbrirFotos }) {
       {/* Header com avatar + KPIs no topo */}
       <Card className="p-5 md:p-6">
         <div className="flex items-center gap-4 md:gap-5">
-          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-brand to-orange-700
-            flex items-center justify-center shrink-0 shadow-lg shadow-brand/20">
+          <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-brand-light to-brand-dark
+            flex items-center justify-center shrink-0 shadow-glow-magenta-sm">
             <span className="text-white text-xl md:text-2xl font-black tracking-tight">
               {iniciaisDoNome(perfil.nome)}
             </span>
@@ -306,7 +306,7 @@ function TabPerfil({ perfil, protocoloAtivo, proximaPendente, onAbrirFotos }) {
         {perfil.envio_fotos_liberado ? (
           <button
             onClick={onAbrirFotos}
-            className="w-full flex items-center justify-center gap-3 bg-brand text-white
+            className="w-full flex items-center justify-center gap-3 bg-brand text-[#0A0A0E]
               font-black text-sm uppercase tracking-widest py-3.5 px-6 rounded-2xl
               hover:bg-brand-dark transition-colors"
           >
@@ -372,7 +372,7 @@ function BFTooltip({ active, payload, label, inicial }) {
   return (
     <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs shadow-lg">
       <p className="text-zinc-400 mb-1">{label}</p>
-      <p style={{ color: '#f97316' }} className="font-bold">
+      <p style={{ color: '#FF1E73' }} className="font-bold">
         %BF: {valor == null ? '—' : `${Number(valor).toFixed(1)}%`}
       </p>
       {diff != null && (
@@ -478,7 +478,7 @@ function TabMedidas({ medidas, evolucao, loading }) {
                 className={
                   'text-xs px-3 py-1 rounded font-bold transition-colors ' +
                   (metrica === opt.id
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand text-[#0A0A0E]'
                     : 'bg-surface-elevated text-zinc-400 hover:text-white')
                 }
               >
@@ -498,7 +498,7 @@ function TabMedidas({ medidas, evolucao, loading }) {
                   <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" domain={['dataMin - 2', 'dataMax + 2']} />
                   <Tooltip content={<CustomTooltip suffix=" kg" />} cursor={{ stroke: '#404040', strokeWidth: 1 }} />
                   <Legend wrapperStyle={{ fontSize: 11, color: '#a1a1aa' }} />
-                  <Line type="monotone" dataKey="peso_kg"       name="Peso total" stroke="#f97316" strokeWidth={2}   dot={false} />
+                  <Line type="monotone" dataKey="peso_kg"       name="Peso total" stroke="#FF1E73" strokeWidth={2}   dot={false} />
                   <Line type="monotone" dataKey="peso_magro_kg" name="Peso magro" stroke="#22c55e" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
                   <Line type="monotone" dataKey="peso_gordo_kg" name="Peso gordo" stroke="#f87171" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
                 </ComposedChart>
@@ -511,7 +511,7 @@ function TabMedidas({ medidas, evolucao, loading }) {
                   {inicialBF != null && (
                     <ReferenceLine y={inicialBF} stroke="#52525b" strokeDasharray="4 4" label={{ value: 'Inicial', fill: '#71717a', fontSize: 10, position: 'right' }} />
                   )}
-                  <Area type="monotone" dataKey="percentual_gordura" name="%BF" stroke="#f97316" fill="#f97316" fillOpacity={0.15} strokeWidth={2} />
+                  <Area type="monotone" dataKey="percentual_gordura" name="%BF" stroke="#FF1E73" fill="#FF1E73" fillOpacity={0.15} strokeWidth={2} />
                 </AreaChart>
               ) : (
                 <LineChart data={serie} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
@@ -520,7 +520,7 @@ function TabMedidas({ medidas, evolucao, loading }) {
                   <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} stroke="#404040" domain={['dataMin - 2', 'dataMax + 2']} />
                   <Tooltip content={<CustomTooltip suffix=" cm" />} cursor={{ stroke: '#404040', strokeWidth: 1 }} />
                   <Legend wrapperStyle={{ fontSize: 11, color: '#a1a1aa' }} />
-                  <Line type="monotone" dataKey="cintura_cm"   name="Cintura" stroke="#f97316" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="cintura_cm"   name="Cintura" stroke="#FF1E73" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="quadril_cm"   name="Quadril" stroke="#a78bfa" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="braco_dir_cm" name="Braço D" stroke="#22c55e" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="coxa_dir_cm"  name="Coxa D"  stroke="#60a5fa" strokeWidth={2} dot={false} />
@@ -739,7 +739,7 @@ function EnviarFotosModal({ open, onClose, onSent }) {
             Envie as que tiver hoje — não precisa todas.
           </p>
           <span className={`text-xs font-black px-2.5 py-1 rounded-full
-            ${total > 0 ? 'bg-brand text-white' : 'bg-surface-elevated text-zinc-500'}`}>
+            ${total > 0 ? 'bg-brand text-[#0A0A0E]' : 'bg-surface-elevated text-zinc-500'}`}>
             {total}/{POSICOES.length}
           </span>
         </div>

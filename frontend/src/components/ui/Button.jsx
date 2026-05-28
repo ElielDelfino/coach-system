@@ -7,14 +7,15 @@ export default function Button({
   children,
   ...props
 }) {
-  const base = 'inline-flex items-center justify-center gap-2 rounded-md font-bold uppercase tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const base = 'inline-flex items-center justify-center gap-2 rounded-md font-display font-bold uppercase tracking-wide transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed';
 
   const variants = {
-    primary: 'bg-brand hover:bg-brand-dark text-white',
-    secondary: 'bg-surface-elevated hover:bg-surface-border text-white border border-surface-border',
+    primary: 'bg-brand hover:bg-brand-light text-[#0A0A0E] glow-magenta-sm',
+    secondary: 'bg-surface-elevated hover:bg-surface-pop text-white border border-white/10',
+    accent: 'bg-transparent text-accent border border-accent/30 hover:border-accent/60',
     ghost: 'text-zinc-400 hover:text-white hover:bg-surface-elevated',
-    danger: 'bg-red-950 hover:bg-red-900 text-red-300 border border-red-900',
-    outline: 'bg-transparent border border-surface-border text-white hover:bg-surface-elevated',
+    danger: 'bg-danger/15 hover:bg-danger/25 text-danger border border-danger/40',
+    outline: 'bg-transparent border border-white/10 text-white hover:bg-surface-elevated',
   };
 
   const sizes = {

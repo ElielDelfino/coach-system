@@ -171,7 +171,7 @@ export default function Alimentos() {
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-zinc-400">{al.quantidade_base} {al.unidade}</td>
                     <td className="px-5 py-2.5 text-right tabular-nums font-bold text-brand">{al.calorias}</td>
-                    <td className="px-5 py-2.5 text-right tabular-nums text-sky-400">{al.proteinas}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums text-accent">{al.proteinas}</td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-amber-400">{al.carboidratos}</td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-rose-400">{al.gorduras}</td>
                     <td className="px-5 py-2.5 text-center">
@@ -238,7 +238,7 @@ export default function Alimentos() {
               </div>
               <div className="grid grid-cols-4 gap-2 mt-3 text-center">
                 <Macro label="Kcal" value={al.calorias} color="text-brand" />
-                <Macro label="Prot" value={al.proteinas} color="text-sky-400" />
+                <Macro label="Prot" value={al.proteinas} color="text-accent" />
                 <Macro label="Carb" value={al.carboidratos} color="text-amber-400" />
                 <Macro label="Gord" value={al.gorduras} color="text-rose-400" />
               </div>

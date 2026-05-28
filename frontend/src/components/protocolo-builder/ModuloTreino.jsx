@@ -67,7 +67,7 @@ export default function ModuloTreino({ protocoloId }) {
             className={clsx(
               'px-3 py-2 rounded-md text-xs uppercase tracking-widest font-bold border transition-colors whitespace-nowrap',
               treinoAtivoId === t.id
-                ? 'bg-brand text-white border-brand'
+                ? 'bg-brand text-[#0A0A0E] border-brand'
                 : 'bg-surface-elevated text-zinc-400 border-surface-border hover:text-white'
             )}
           >
@@ -654,7 +654,7 @@ function AdicionarTreinoItemModal({ open, onClose, treinoId, proximoOrdem, onAdd
               onClick={() => { setTipo(t.v); setSelected(null); }}
               className={
                 'px-3 py-1.5 rounded-md text-xs uppercase tracking-widest font-bold transition-colors ' +
-                (tipo === t.v ? 'bg-brand text-white' : 'bg-surface-elevated text-zinc-400 border border-surface-border hover:text-white')
+                (tipo === t.v ? 'bg-brand text-[#0A0A0E]' : 'bg-surface-elevated text-zinc-400 border border-surface-border hover:text-white')
               }
             >
               {t.l}

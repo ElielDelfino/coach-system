@@ -74,8 +74,8 @@ export default function Home() {
 
   return (
     <div className="px-5 pt-8 pb-4">
-      <p className="text-zinc-400 text-sm">{saudacao()},</p>
-      <h1 className="text-3xl font-black text-white tracking-tight mb-6">
+      <p className="text-zinc-400 text-[11px] font-display font-semibold uppercase tracking-widest">{saudacao()}</p>
+      <h1 className="text-3xl font-display font-extrabold text-white tracking-tight mb-6">
         {primeiroNome(perfil.nome)}
       </h1>
 
@@ -89,18 +89,18 @@ export default function Home() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.05 }}
-          className="bg-gradient-to-br from-zinc-900 to-zinc-950
-            border border-brand/30 rounded-2xl p-5 mb-4
+          className="bg-surface-card bg-spot
+            border border-brand/35 rounded-2xl p-5 mb-4 shadow-glow-magenta-sm
             hover:scale-[1.01] transition-transform"
         >
-          <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">
+          <p className="text-brand text-xs font-display font-semibold uppercase tracking-widest mb-2">
             Próximo treino
           </p>
-          <p className="text-brand text-2xl font-black mb-3">{proximoTreino.nome}</p>
+          <p className="text-white text-2xl font-display font-extrabold mb-3">{proximoTreino.nome}</p>
           <button
             onClick={() => navigate(`/aluno/treino/${proximoProtocoloId}/${proximoTreino.id}`)}
-            className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full
-              uppercase tracking-wide hover:bg-brand-dark transition-colors"
+            className="bg-brand text-[#0A0A0E] text-xs font-display font-bold px-4 py-2 rounded-full
+              uppercase tracking-wide glow-magenta-sm hover:bg-brand-light transition-colors active:scale-[0.97]"
           >
             Ir para o treino
           </button>
@@ -108,16 +108,16 @@ export default function Home() {
       )}
 
       {proximaRefeicao && (
-        <div className="bg-surface-card border border-brand/30 rounded-2xl p-5 mb-4
+        <div className="bg-surface-card border border-accent/30 rounded-2xl p-5 mb-4
           hover:scale-[1.01] transition-transform">
-          <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">
+          <p className="text-accent text-xs font-display font-semibold uppercase tracking-widest mb-2">
             Próxima refeição
           </p>
-          <p className="text-brand text-2xl font-black mb-3">{proximaRefeicao.nome}</p>
+          <p className="text-white text-2xl font-display font-extrabold mb-3">{proximaRefeicao.nome}</p>
           <button
             onClick={() => navigate(`/aluno/dieta/${proximaRefeicao.id}`)}
-            className="bg-brand text-white text-xs font-black px-4 py-2 rounded-full
-              uppercase tracking-wide hover:bg-brand-dark transition-colors"
+            className="bg-transparent text-accent border border-accent/40 text-xs font-display font-bold px-4 py-2 rounded-full
+              uppercase tracking-wide hover:border-accent/70 transition-colors active:scale-[0.97]"
           >
             Ir para refeição
           </button>
@@ -126,10 +126,10 @@ export default function Home() {
 
       <div className="mt-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-white text-2xl font-black">Água</h2>
-          <div className="flex items-center gap-2 border border-brand rounded-full px-3 py-1">
+          <h2 className="text-white text-2xl font-display font-extrabold">Água</h2>
+          <div className="flex items-center gap-2 border border-brand/50 rounded-full px-3 py-1">
             <span className="text-brand text-xs">🎯</span>
-            <span className="text-white font-bold text-sm">{META_AGUA} L</span>
+            <span className="text-white font-mono font-bold text-sm">{META_AGUA} L</span>
           </div>
         </div>
         <p className="text-zinc-500 text-xs mb-2">Ingerido</p>
@@ -157,7 +157,7 @@ export default function Home() {
               [&::-moz-range-thumb]:border-0
               [&::-moz-range-thumb]:cursor-pointer"
             style={{
-              background: `linear-gradient(to right, #f97316 ${pctAgua}%, #161616 ${pctAgua}%)`,
+              background: `linear-gradient(to right, #FF1E73 ${pctAgua}%, #1B1B26 ${pctAgua}%)`,
             }}
           />
         </div>

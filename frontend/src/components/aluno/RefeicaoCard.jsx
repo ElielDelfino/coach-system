@@ -85,7 +85,7 @@ export default function RefeicaoCard({ refeicao, feito, disabled, onToggleChecki
       </div>
 
       <div className="flex items-end gap-2 mt-2.5 pl-12">
-        <MacroBar label="P" valor={refeicao.total_prot} color="bg-blue-500/70" />
+        <MacroBar label="P" valor={refeicao.total_prot} color="bg-accent/70" />
         <MacroBar label="C" valor={refeicao.total_carb} color="bg-yellow-500/70" />
         <MacroBar label="G" valor={refeicao.total_gord} color="bg-red-500/70" />
       </div>

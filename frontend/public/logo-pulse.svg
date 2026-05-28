@@ -1,0 +1,24 @@
+<svg width="248" height="60" viewBox="0 0 248 60" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Coach System">
+  <defs>
+    <linearGradient id="csGrad" x1="62" y1="0" x2="210" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF1E73"></stop>
+      <stop offset="1" stop-color="#FF5BA0"></stop>
+    </linearGradient>
+    <filter id="csGlow" x="-40%" y="-80%" width="180%" height="260%">
+      <feGaussianBlur stdDeviation="3" result="b"></feGaussianBlur>
+      <feMerge>
+        <feMergeNode in="b"></feMergeNode>
+        <feMergeNode in="SourceGraphic"></feMergeNode>
+      </feMerge>
+    </filter>
+  </defs>
+
+  
+  <g filter="url(#csGlow)">
+    <path d="M2 30 H13 L19 11 L29 50 L37 30 H48" stroke="#C2FF36" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+  </g>
+
+  
+  <text x="60" y="29" font-family="Saira, &#39;Arial Narrow&#39;, sans-serif" font-size="30" font-weight="800" letter-spacing="1" fill="url(#csGrad)">COACH</text>
+  <text x="60" y="50" font-family="Saira, &#39;Arial Narrow&#39;, sans-serif" font-size="16" font-weight="600" letter-spacing="6.5" fill="#A6A2B4">SYSTEM</text>
+</svg>

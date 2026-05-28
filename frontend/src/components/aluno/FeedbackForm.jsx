@@ -189,7 +189,7 @@ export default function FeedbackForm() {
           whileTap={{ scale: 0.97 }}
           type="submit"
           disabled={enviar.isPending}
-          className="w-full bg-brand text-white font-black text-sm uppercase tracking-widest
+          className="w-full bg-brand text-[#0A0A0E] font-black text-sm uppercase tracking-widest
             py-3.5 rounded-xl hover:bg-brand-dark transition-colors
             disabled:opacity-50 disabled:cursor-not-allowed"
         >
